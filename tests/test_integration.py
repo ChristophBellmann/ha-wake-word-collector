@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import intent
 from homeassistant.setup import async_setup_component
@@ -30,12 +30,12 @@ async def entry(hass: HomeAssistant, tmp_path: Path) -> MockConfigEntry:
     assert await async_setup_component(hass, "http", {})
     entry = MockConfigEntry(
         domain=DOMAIN,
-        title="Hey Momo",
-        unique_id="hey_momo",
-        data={CONF_SLUG: "hey_momo", CONF_TOKEN: TOKEN},
+        title="Hey Nova",
+        unique_id="hey_nova",
+        data={CONF_SLUG: "hey_nova", CONF_TOKEN: TOKEN},
         options={
-            CONF_PHRASE: "Hey Momo",
-            CONF_VARIANTS: "hei momo, hey mumu",
+            CONF_PHRASE: "Hey Nova",
+            CONF_VARIANTS: "hei nova, hey nuva",
             CONF_CONTROL: "fertig, reicht",
             CONF_STORAGE: str(tmp_path / "clips"),
         },
@@ -48,7 +48,7 @@ async def entry(hass: HomeAssistant, tmp_path: Path) -> MockConfigEntry:
 
 async def upload(client, transcript: str, body: bytes, token: str = TOKEN, device: str = "kitchen"):
     return await client.post(
-        "/api/wake_word_collector/clips/hey_momo",
+        "/api/wake_word_collector/clips/hey_nova",
         data=body,
         headers={
             "X-Wakeword-Token": token,
@@ -86,20 +86,20 @@ async def test_config_flow_shows_device_settings(hass: HomeAssistant, tmp_path: 
 async def test_options_keep_phrase_and_show_token(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["description_placeholders"]["token"] == TOKEN
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_VARIANTS: "hai momo"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_VARIANTS: "hai nova"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_PHRASE] == "Hey Momo" and entry.options[CONF_VARIANTS] == "hai momo"
+    assert entry.options[CONF_PHRASE] == "Hey Nova" and entry.options[CONF_VARIANTS] == "hai nova"
 
 
 async def test_upload_sorts_and_updates_sensor(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
     client = await hass_client_no_auth()
-    response = await upload(client, "Hey Momo, Hey Momo", wav_bytes(speech(0.8) + silence(0.3) + speech(0.8)))
+    response = await upload(client, "Hey Nova, Hey Nova", wav_bytes(speech(0.8) + silence(0.3) + speech(0.8)))
     assert response.status == 201
     assert len((await response.json())["records"]) == 2
     response = await upload(client, "Wie spät ist es", wav_bytes(speech(1.5, 2000)))
     assert (await response.json())["records"][0]["category"] == "needs_review"
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.hey_momo_recordings")
+    state = hass.states.get("sensor.hey_nova_recordings")
     assert state.state == "2"
     assert state.attributes["needs_review"] == 1
     assert state.attributes["last_transcript"] == "Wie spät ist es"
@@ -107,8 +107,8 @@ async def test_upload_sorts_and_updates_sensor(hass: HomeAssistant, entry, hass_
 
 async def test_upload_refuses_bad_token_and_audio(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
     client = await hass_client_no_auth()
-    assert (await upload(client, "Hey Momo", wav_bytes(speech(1)), token="wrong")).status == 401
-    response = await upload(client, "Hey Momo", b"RIFF....not a wav....................................")
+    assert (await upload(client, "Hey Nova", wav_bytes(speech(1)), token="wrong")).status == 401
+    response = await upload(client, "Hey Nova", b"RIFF....not a wav....................................")
     assert response.status == 400
     assert (await response.json())["error"] == "not_wav"
     response = await client.post("/api/wake_word_collector/clips/other", data=b"x")
@@ -117,20 +117,20 @@ async def test_upload_refuses_bad_token_and_audio(hass: HomeAssistant, entry, ha
 
 async def test_start_stop_command(hass: HomeAssistant, entry) -> None:
     await hass.services.async_call(DOMAIN, "start", {}, blocking=True)
-    assert hass.states.get("sensor.hey_momo_satellite_command").state.startswith("start:*:")
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("start:*:")
     await hass.services.async_call(DOMAIN, "stop", {"device": "Kitchen"}, blocking=True)
-    assert hass.states.get("sensor.hey_momo_satellite_command").state.startswith("stop:kitchen:")
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("stop:kitchen:")
 
 
 async def test_list_review_and_trim(hass: HomeAssistant, entry, hass_client_no_auth, hass_ws_client, hass_client):
     client = await hass_client_no_auth()
-    await upload(client, "Hey Momi", wav_bytes(speech(3)))
+    await upload(client, "Hey Novi", wav_bytes(speech(3)))
     ws = await hass_ws_client(hass)
     await ws.send_json({"id": 1, "type": "wake_word_collector/list"})
     reply = await ws.receive_json()
     [collector] = reply["result"]["collectors"]
     [item] = collector["items"]
-    assert item["category"] == "needs_review" and item["transcript"] == "Hey Momi"
+    assert item["category"] == "needs_review" and item["transcript"] == "Hey Novi"
     audio = await (await hass_client()).get(item["audio_path"])
     assert audio.status == 200 and audio.headers["Content-Type"] == "audio/wav"
     result = await hass.services.async_call(
@@ -156,7 +156,7 @@ async def test_list_review_and_trim(hass: HomeAssistant, entry, hass_client_no_a
         return_response=True,
     )
     assert result["duration_ms"] == 2000
-    assert hass.states.get("sensor.hey_momo_recordings").state == "2"
+    assert hass.states.get("sensor.hey_nova_recordings").state == "2"
     with pytest.raises(Exception) as err:
         await hass.services.async_call(
             DOMAIN,
@@ -170,25 +170,25 @@ async def test_list_review_and_trim(hass: HomeAssistant, entry, hass_client_no_a
 async def test_intents(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
     response = await intent.async_handle(hass, "test", "WakeWordCollectionStart", language="de")
     assert "Aktivierungswort" in response.speech["plain"]["speech"]
-    assert hass.states.get("sensor.hey_momo_satellite_command").state.startswith("start:*:")
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("start:*:")
     client = await hass_client_no_auth()
-    await upload(client, "Hey Momo", wav_bytes(speech(1.5)))
+    await upload(client, "Hey Nova", wav_bytes(speech(1.5)))
     response = await intent.async_handle(hass, "test", "WakeWordCollectionStats", language="en")
     assert "1 usable" in response.speech["plain"]["speech"]
     await intent.async_handle(
         hass, "test", "WakeWordCollectionReview", {"note": {"value": "bad, a car"}, "reject": {"value": True}}
     )
     await hass.async_block_till_done()
-    assert hass.states.get("sensor.hey_momo_recordings").state == "0"
+    assert hass.states.get("sensor.hey_nova_recordings").state == "0"
     response = await intent.async_handle(hass, "test", "WakeWordCollectionStop")
-    assert hass.states.get("sensor.hey_momo_satellite_command").state.startswith("stop:*:")
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("stop:*:")
 
 
 async def test_export_for_training(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
     client = await hass_client_no_auth()
-    await upload(client, "Hey Momo", wav_bytes(speech(1.5)))
-    assert (await client.get("/api/wake_word_collector/export/hey_momo")).status == 401
-    reply = await client.get("/api/wake_word_collector/export/hey_momo", headers={"X-Wakeword-Token": TOKEN})
+    await upload(client, "Hey Nova", wav_bytes(speech(1.5)))
+    assert (await client.get("/api/wake_word_collector/export/hey_nova")).status == 401
+    reply = await client.get("/api/wake_word_collector/export/hey_nova", headers={"X-Wakeword-Token": TOKEN})
     [candidate] = (await reply.json())["candidates"]
     audio = await client.get(candidate["audio_url"], headers={"X-Wakeword-Token": TOKEN})
     assert audio.status == 200 and len(await audio.read()) > 44
@@ -197,4 +197,46 @@ async def test_export_for_training(hass: HomeAssistant, entry, hass_client_no_au
 async def test_diagnostics_hide_token(hass: HomeAssistant, entry) -> None:
     result = await async_get_config_entry_diagnostics(hass, entry)
     assert TOKEN not in str(result)
-    assert result["accepted"] == ["hey momo", "hei momo", "hey mumu"]
+    assert result["accepted"] == ["hey nova", "hei nova", "hey nuva"]
+
+
+async def test_blueprint_sentences(hass: HomeAssistant, entry, tmp_path: Path, hass_client_no_auth) -> None:
+    import shutil
+
+    from homeassistant.components import conversation
+
+    hass.config.config_dir = str(tmp_path)
+    target = tmp_path / "blueprints" / "automation" / "wake_word_collector"
+    target.mkdir(parents=True)
+    shutil.copy(Path(__file__).parents[1] / "blueprints/automation/wake_word_collector/voice_commands.yaml", target)
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "conversation", {})
+    assert await async_setup_component(
+        hass,
+        "automation",
+        {
+            "automation": {
+                "use_blueprint": {
+                    "path": "wake_word_collector/voice_commands.yaml",
+                    "input": {"recordings": "sensor.hey_nova_recordings", "wake_word": ["hey nova"]},
+                }
+            }
+        },
+    )
+    await hass.async_block_till_done()
+
+    async def say(text: str) -> str:
+        result = await conversation.async_converse(hass, text, None, Context(), language="en")
+        return result.response.speech.get("plain", {}).get("speech", "")
+
+    assert (await say("record the wake word")).startswith("Recording started")
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("start:*:")
+    assert await say("Hey Nova") == ""
+    client = await hass_client_no_auth()
+    await upload(client, "Hey Nova", wav_bytes(speech(1.5)))
+    await hass.async_block_till_done()
+    assert await say("how many wake word recordings are there") == (
+        "There are 1 usable recordings, 0 to check and 1 in total."
+    )
+    assert await say("I am done") == "Wake word recording stopped."
+    assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("stop:*:")

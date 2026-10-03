@@ -1,0 +1,48 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+jobs:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements_test.txt ruff
+      - name: Requirements of the conversation integration (blueprint test)
+        run: python -c "import json, pathlib, homeassistant; m = pathlib.Path(homeassistant.__file__).parent / 'components/conversation/manifest.json'; print(' '.join(json.loads(m.read_text())['requirements']))" | xargs pip install
+      - run: ruff check . && ruff format --check .
+      - run: pytest -q
+      - run: node tests/card.test.cjs
+
+  esphome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install esphome
+      - run: esphome config tests/esphome/satellite.yaml
+      - run: esphome compile tests/esphome/satellite.yaml

@@ -67,7 +67,7 @@ def utc_now() -> datetime:
 
 
 def normalize(value: str) -> str:
-    """Lower case, no accents or punctuation: "Hey, Mömo!" -> "hey momo"."""
+    """Lower case, no accents or punctuation: "Hey, Növa!" -> "hey nova"."""
     value = unicodedata.normalize("NFKD", value.casefold())
     value = "".join(char for char in value if not unicodedata.combining(char))
     return " ".join(re.findall(r"[a-z0-9]+", value))
@@ -75,7 +75,7 @@ def normalize(value: str) -> str:
 
 def word_matches(heard: str, expected: str) -> bool:
     """Speech recognition sometimes appends a liaison "n" or "s" to a name
-    ("Momon"). Bounded on purpose: longer words stay different."""
+    ("Novan"). Bounded on purpose: longer words stay different."""
     return heard == expected or (
         len(expected) >= 4 and len(heard) == len(expected) + 1 and heard[:-1] == expected and heard[-1] in "ns"
     )

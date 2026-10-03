@@ -21,7 +21,7 @@ from custom_components.wake_word_collector.collect import (
     split_repetitions,
 )
 
-HEY_MOMO = Phrases.build("Hey Momo", ["hei momo", "hai momo", "hey mumu"], ["fertig", "reicht", "beenden"])
+HEY_NOVA = Phrases.build("Hey Nova", ["hei nova", "hai nova", "hey nuva"], ["fertig", "reicht", "beenden"])
 
 
 def wav_bytes(samples, rate: int = 16000) -> bytes:
@@ -51,18 +51,18 @@ def write(path: Path, samples) -> Path:
 
 
 def test_normalize() -> None:
-    assert normalize("Hey, Mömo!") == "hey momo"
+    assert normalize("Hey, Növa!") == "hey nova"
 
 
 @pytest.mark.parametrize(
     ("transcript", "expected"),
     [
-        ("Hey, Momo!", CANDIDATES),
-        ("Hey Mumu! Hey Mumu!", CANDIDATES),
-        ("Hey Momon! Hey Momon!", CANDIDATES),
-        ("Hai Momo", CANDIDATES),
-        ("Hey Momondo", NEEDS_REVIEW),  # longer similar word stays out
-        ("Hey Momo, mach das Licht an", NEEDS_REVIEW),  # wake word with other speech
+        ("Hey, Nova!", CANDIDATES),
+        ("Hey Nuva! Hey Nuva!", CANDIDATES),
+        ("Hey Novan! Hey Novan!", CANDIDATES),
+        ("Hai Nova", CANDIDATES),
+        ("Hey Novanda", NEEDS_REVIEW),  # longer similar word stays out
+        ("Hey Nova, mach das Licht an", NEEDS_REVIEW),  # wake word with other speech
         ("Ich bin fertig", CONTROL),
         ("Das reicht jetzt", CONTROL),
         ("Wie wird das Wetter", NEEDS_REVIEW),
@@ -70,13 +70,13 @@ def test_normalize() -> None:
     ],
 )
 def test_classify(transcript: str, expected: str) -> None:
-    assert HEY_MOMO.classify(transcript) == expected
+    assert HEY_NOVA.classify(transcript) == expected
 
 
 def test_repetitions_count_complete_phrases() -> None:
-    assert HEY_MOMO.repetitions("Hey Momo, Hey Momo") == 2
-    assert HEY_MOMO.repetitions("Hey Momo Hei Momo Hey Mumu") == 3
-    assert HEY_MOMO.repetitions("Hey Momo Momo") == 0
+    assert HEY_NOVA.repetitions("Hey Nova, Hey Nova") == 2
+    assert HEY_NOVA.repetitions("Hey Nova Hei Nova Hey Nuva") == 3
+    assert HEY_NOVA.repetitions("Hey Nova Nova") == 0
 
 
 def test_single_word_wake_word() -> None:
@@ -130,17 +130,17 @@ def test_split_at_quiet_section(tmp_path: Path) -> None:
 
 @pytest.fixture
 def store(tmp_path: Path) -> Store:
-    store = Store(tmp_path / "hey_momo", HEY_MOMO)
+    store = Store(tmp_path / "hey_nova", HEY_NOVA)
     store.ensure()
     return store
 
 
 def test_add_sorts_by_transcript_and_quality(store: Store) -> None:
-    [good] = store.add("Kitchen", "Hey Momo", wav_bytes(speech(1.5)))
+    [good] = store.add("Kitchen", "Hey Nova", wav_bytes(speech(1.5)))
     assert good["category"] == CANDIDATES and good["device"] == "kitchen"
     [other] = store.add("kitchen", "Wie spät ist es", wav_bytes(speech(1.5, 2000)))
     assert other["category"] == NEEDS_REVIEW
-    [quiet] = store.add("kitchen", "Hey Momo", wav_bytes(silence(1.5)))
+    [quiet] = store.add("kitchen", "Hey Nova", wav_bytes(silence(1.5)))
     assert quiet["category"] == REJECTED_QUALITY
     [stop] = store.add("kitchen", "Ich bin fertig", wav_bytes(speech(1.5, 2500)))
     assert stop["category"] == CONTROL
@@ -152,22 +152,22 @@ def test_add_sorts_by_transcript_and_quality(store: Store) -> None:
 
 
 def test_add_splits_repetitions(store: Store) -> None:
-    records = store.add("bath", "Hey Momo, Hey Momo", wav_bytes(speech(0.8) + silence(0.3) + speech(0.8)))
+    records = store.add("bath", "Hey Nova, Hey Nova", wav_bytes(speech(0.8) + silence(0.3) + speech(0.8)))
     assert [r["split_index"] for r in records] == [1, 2]
     assert store.stats()["candidates"] == 2
 
 
 def test_add_refuses_bad_device_and_size(store: Store) -> None:
     with pytest.raises(CollectorError) as err:
-        store.add("../etc", "Hey Momo", wav_bytes(speech(1)))
+        store.add("../etc", "Hey Nova", wav_bytes(speech(1)))
     assert err.value.code == "invalid_device"
     with pytest.raises(CollectorError) as err:
-        store.add("bath", "Hey Momo", b"RIFF")
+        store.add("bath", "Hey Nova", b"RIFF")
     assert err.value.code == "invalid_size"
 
 
 def test_review_moves_recoverably(store: Store) -> None:
-    [other] = store.add("office", "Hey Momi", wav_bytes(speech(1.5)))
+    [other] = store.add("office", "Hey Novi", wav_bytes(speech(1.5)))
     listed = store.list()
     assert listed[0]["filename"] == other["filename"] and listed[0]["category"] == NEEDS_REVIEW
     record = store.review(NEEDS_REVIEW, "office", other["filename"], "accept")
@@ -183,7 +183,7 @@ def test_review_moves_recoverably(store: Store) -> None:
 
 
 def test_review_latest_notes_or_rejects(store: Store) -> None:
-    store.add("office", "Hey Momo", wav_bytes(speech(1.5)))
+    store.add("office", "Hey Nova", wav_bytes(speech(1.5)))
     record = store.review_latest("dishwasher running")
     assert record["decision"] == "note"
     assert next(iter(store.records().values()))["note"] == "dishwasher running"
@@ -195,7 +195,7 @@ def test_review_latest_notes_or_rejects(store: Store) -> None:
 
 
 def test_trim_keep_remove_extract(store: Store) -> None:
-    [clip] = store.add("lab", "Hey Momo", wav_bytes(speech(3)))
+    [clip] = store.add("lab", "Hey Nova", wav_bytes(speech(3)))
     name = clip["filename"]
     assert store.trim(CANDIDATES, "lab", name, 500, 2500)["duration_ms"] == 2000
     assert store.records()[("lab", name)]["trim_mode"] == "keep"
@@ -212,7 +212,7 @@ def test_trim_keep_remove_extract(store: Store) -> None:
     [(0, 200, "keep", "duration"), (1000, 500, "keep", "trim_range"), (0, 1000, "cut", "invalid_mode")],
 )
 def test_trim_refuses(store: Store, start, end, mode, code) -> None:
-    [clip] = store.add("lab", "Hey Momo", wav_bytes(speech(1.2)))
+    [clip] = store.add("lab", "Hey Nova", wav_bytes(speech(1.2)))
     with pytest.raises(CollectorError) as err:
         store.trim(CANDIDATES, "lab", clip["filename"], start, end, mode)
     assert err.value.code == code

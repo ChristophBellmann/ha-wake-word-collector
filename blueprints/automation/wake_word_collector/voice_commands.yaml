@@ -1,0 +1,111 @@
+blueprint:
+  name: Wake word collection by voice
+  description: >-
+    Sentences for Home Assistant's built-in conversation agent: start and stop
+    collecting wake word recordings, ask how many there are, and answer the
+    wake word itself instantly while collecting (otherwise every example would
+    go to the agent). With an LLM agent this is optional: the integration also
+    provides intents the agent can call. Sentences use the template syntax of
+    custom sentences, e.g. "[please] stop [the] recording".
+  domain: automation
+  source_url: https://github.com/ChristophBellmann/ha-wake-word-collector/blob/main/blueprints/automation/wake_word_collector/voice_commands.yaml
+  input:
+    wake_word:
+      name: Wake word
+      description: The wake word as speech-to-text writes it, with variants. Answered with silence.
+      default: ["hey jarvis", "hey jarvas", "(hey|hi) jarvis [(hey|hi) jarvis] [(hey|hi) jarvis]"]
+      selector:
+        text:
+          multiple: true
+    start:
+      name: Start sentences
+      default: ["record [the] wake word", "start [the] wake word recording", "i want to record [the] wake word"]
+      selector:
+        text:
+          multiple: true
+    stop:
+      name: Stop sentences
+      default: ["[i am] done", "that is enough", "stop [the] [wake word] recording"]
+      selector:
+        text:
+          multiple: true
+    stats:
+      name: Statistics sentences
+      default: ["how many wake word recordings are there", "how many recordings [were made]"]
+      selector:
+        text:
+          multiple: true
+    recordings:
+      name: Recordings sensor
+      description: sensor.<wake word>_recordings of Wake Word Collector.
+      selector:
+        entity:
+          filter:
+            integration: wake_word_collector
+            domain: sensor
+    start_response:
+      name: Answer when starting
+      default: Recording started. Now say only the wake word, as often as you like. Say that you are done to stop.
+      selector:
+        text:
+    stop_response:
+      name: Answer when stopping
+      default: Wake word recording stopped.
+      selector:
+        text:
+    stats_response:
+      name: Answer with statistics
+      description: "{usable}, {to_check} and {total} are replaced."
+      default: There are {usable} usable recordings, {to_check} to check and {total} in total.
+      selector:
+        text:
+
+mode: queued
+max: 20
+
+variables:
+  recordings: !input recordings
+  stats_response: !input stats_response
+
+triggers:
+  - trigger: conversation
+    command: !input wake_word
+    id: sample
+  - trigger: conversation
+    command: !input start
+    id: start
+  - trigger: conversation
+    command: !input stop
+    id: stop
+  - trigger: conversation
+    command: !input stats
+    id: stats
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: sample
+        sequence:
+          - set_conversation_response: ""
+      - conditions:
+          - condition: trigger
+            id: start
+        sequence:
+          - action: wake_word_collector.start
+          - set_conversation_response: !input start_response
+      - conditions:
+          - condition: trigger
+            id: stop
+        sequence:
+          - action: wake_word_collector.stop
+          - set_conversation_response: !input stop_response
+      - conditions:
+          - condition: trigger
+            id: stats
+        sequence:
+          - set_conversation_response: >-
+              {{ stats_response
+                 | replace('{usable}', states(recordings))
+                 | replace('{to_check}', state_attr(recordings, 'needs_review') | string)
+                 | replace('{total}', state_attr(recordings, 'total') | string) }}

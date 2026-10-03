@@ -34,7 +34,8 @@ defaults:
   wake_word_va_id: va
   wake_word_media_player_id: external_media_player
   wake_word_max_duration: 8s
-  wake_word_components: github://ChristophBellmann/ha-wake-word-collector/esphome/components@main
+  # ESPHome finds the component in esphome/components of the repository.
+  wake_word_components: github://ChristophBellmann/ha-wake-word-collector@main
 
 globals:
   - id: wake_word_collection_active

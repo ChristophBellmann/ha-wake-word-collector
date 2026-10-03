@@ -2,10 +2,11 @@
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import http_request, microphone
 from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_URL
+
+from esphome import automation
+from esphome.components import http_request, microphone
 
 DEPENDENCIES = ["http_request", "microphone"]
 CODEOWNERS = []
@@ -56,9 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    mic_source = await microphone.microphone_source_to_code(
-        config[CONF_MICROPHONE], passive=True
-    )
+    mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE], passive=True)
     # The second, active handle: start() and stop() take effect. The I2S
     # driver counts its listeners, so holding does not disturb micro_wake_word.
     mic = await cg.get_variable(config[CONF_MICROPHONE][CONF_MICROPHONE])

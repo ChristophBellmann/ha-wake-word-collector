@@ -19,15 +19,15 @@ assert.equal(window.customCards.length, 1);
 const Card = registry.get('wake-word-collector-card');
 
 const items = [
-  {category: 'needs_review', device: 'kitchen', filename: 'ha_kitchen_20261003T120000_aaaaaaaaaaaa.wav', created_at: '2026-10-03T12:00:00Z', transcript: 'Hey Momi', duration_ms: 1500, audio_path: '/a'},
-  {category: 'candidates', device: 'bath', filename: 'ha_bath_20261003T110000_bbbbbbbbbbbb.wav', created_at: '2026-10-03T11:00:00Z', transcript: 'Hey Momo', duration_ms: 1200, audio_path: '/b'},
+  {category: 'needs_review', device: 'kitchen', filename: 'ha_kitchen_20261003T120000_aaaaaaaaaaaa.wav', created_at: '2026-10-03T12:00:00Z', transcript: 'Hey Novi', duration_ms: 1500, audio_path: '/a'},
+  {category: 'candidates', device: 'bath', filename: 'ha_bath_20261003T110000_bbbbbbbbbbbb.wav', created_at: '2026-10-03T11:00:00Z', transcript: 'Hey Nova', duration_ms: 1200, audio_path: '/b'},
 ];
 const calls = [];
 function card(language) {
   const c = new Card();
   c.setConfig({});
   c.bind = () => {};
-  c._hass = {language, callWS: async () => ({collectors: [{entry_id: 'e1', title: 'Hey Momo', stats: {candidates: 1, needs_review: 1, total: 2}, items}]}),
+  c._hass = {language, callWS: async () => ({collectors: [{entry_id: 'e1', title: 'Hey Nova', stats: {candidates: 1, needs_review: 1, total: 2}, items}]}),
     callService: async (...args) => calls.push(args)};
   return c;
 }
@@ -36,9 +36,9 @@ function card(language) {
   const de = card('de');
   await de.load();
   let html = de.shadowRoot.innerHTML;
-  assert.ok(html.includes('Wakeword-Aufnahmen: Hey Momo'));
+  assert.ok(html.includes('Wakeword-Aufnahmen: Hey Nova'));
   assert.ok(html.includes('1 verwendbar · 1 zu prüfen · 2 insgesamt'));
-  assert.ok(html.includes('Erkannt: „Hey Momi“'));
+  assert.ok(html.includes('Erkannt: „Hey Novi“'));
   assert.ok(html.includes('1,5 s'));
   assert.equal((html.match(/data-action="accept"/g) || []).length, 1, 'Only recordings to check can be accepted.');
   de.filter = 'review';
