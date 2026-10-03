@@ -183,6 +183,12 @@
     },
     "trainer_no_model": {
       "message": "The trainer has no exported model."
+    },
+    "folder_not_found": {
+      "message": "The folder does not exist."
+    },
+    "folder_not_allowed": {
+      "message": "Home Assistant may not read this folder (allowlist_external_dirs)."
     }
   },
   "services": {
@@ -349,6 +355,32 @@
         "route": {
           "name": "Loudspeaker",
           "description": "A route of the trainer service's speaker_test configuration."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
+        }
+      }
+    },
+    "import": {
+      "name": "Import recordings",
+      "description": "Take over existing WAV recordings (mono, 16 bit), e.g. from an earlier training setup, as accepted clips or as negatives. The folder must be in allowlist_external_dirs or below the configuration folder.",
+      "fields": {
+        "folder": {
+          "name": "Folder",
+          "description": "Searched recursively for .wav files."
+        },
+        "category": {
+          "name": "As",
+          "description": "candidates: the wake word; negatives: not the wake word."
+        },
+        "device": {
+          "name": "Source name",
+          "description": "Shown like a satellite name, e.g. earlier."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Stored with every clip."
         },
         "config_entry_id": {
           "name": "Wake word",

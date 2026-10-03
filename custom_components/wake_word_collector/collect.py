@@ -406,6 +406,59 @@ class Store:
         finally:
             temp_path.unlink(missing_ok=True)
 
+    # Import -------------------------------------------------------------------
+
+    def import_folder(self, folder: Path, category: str, device: str, note: str = "") -> dict[str, int]:
+        """Take over existing recordings (mono PCM16 WAVs, e.g. from an earlier
+        training setup) as accepted clips or as negatives. Clips already present
+        (same content) are skipped, unreadable ones counted as refused."""
+        if category not in (CANDIDATES, NEGATIVES):
+            raise CollectorError("invalid_category")
+        device = device.lower()
+        if not DEVICE_RE.fullmatch(device):
+            raise CollectorError("invalid_device")
+        if not folder.is_dir():
+            raise CollectorError("folder_not_found")
+        self.ensure()
+        known = {record.get("sha256") for record in self.records().values()}
+        result = {"imported": 0, "duplicates": 0, "refused": 0}
+        incoming = self.root / ".incoming"
+        incoming.mkdir(parents=True, exist_ok=True)
+        for source in sorted(folder.rglob("*.wav")):
+            body = source.read_bytes()
+            digest = hashlib.sha256(body).hexdigest()
+            if digest in known:
+                result["duplicates"] += 1
+                continue
+            part = incoming / f"import-{digest[:16]}.wav"
+            part.write_bytes(body)
+            try:
+                meta = analyse(part)
+            except CollectorError:
+                part.unlink(missing_ok=True)
+                result["refused"] += 1
+                continue
+            timestamp = datetime.fromtimestamp(source.stat().st_mtime, UTC)
+            filename, sha256 = self._stage(part, category, device, timestamp)
+            self._append(
+                "manifest.jsonl",
+                {
+                    "created_at": timestamp.isoformat(),
+                    "device": device,
+                    "category": category,
+                    "filename": filename,
+                    "transcript": "",
+                    "kind": "import",
+                    "imported_from": source.name,
+                    "note": note,
+                    "sha256": sha256,
+                    **meta,
+                },
+            )
+            known.add(digest)
+            result["imported"] += 1
+        return result
+
     # Listing ------------------------------------------------------------------
 
     def stats(self) -> dict[str, Any]:

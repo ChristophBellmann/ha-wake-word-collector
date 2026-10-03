@@ -249,3 +249,40 @@ async def test_training_services_need_a_trainer(hass: HomeAssistant, entry) -> N
     with pytest.raises(HomeAssistantError):
         await hass.services.async_call(DOMAIN, "stop_training", {}, blocking=True)
     assert hass.states.get("sensor.hey_nova_training") is None
+
+
+async def test_import_folder(hass: HomeAssistant, entry, tmp_path: Path) -> None:
+    import shutil
+
+    source = tmp_path / "earlier"
+    (source / "accepted").mkdir(parents=True)
+    for index in range(3):
+        (source / "accepted" / f"{index}.wav").write_bytes(wav_bytes(speech(1 + index * 0.1)))
+    (source / "accepted" / "broken.wav").write_bytes(b"not a wav")
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "import", {"folder": str(source), "category": "candidates", "device": "earlier"}, blocking=True
+        )
+    hass.config.allowlist_external_dirs = {str(tmp_path)}
+    result = await hass.services.async_call(
+        DOMAIN,
+        "import",
+        {"folder": str(source), "category": "candidates", "device": "Earlier", "note": "lab"},
+        blocking=True,
+        return_response=True,
+    )
+    assert result == {"imported": 3, "duplicates": 0, "refused": 1}
+    assert hass.states.get("sensor.hey_nova_recordings").state == "3"
+    again = await hass.services.async_call(
+        DOMAIN,
+        "import",
+        {"folder": str(source), "category": "negatives", "device": "earlier"},
+        blocking=True,
+        return_response=True,
+    )
+    assert again == {"imported": 0, "duplicates": 3, "refused": 1}
+    store = entry.runtime_data.store
+    files = sorted(p.name for p in (store.root / "candidates" / "earlier").glob("*.wav"))
+    assert len(files) == 3 and all(name.startswith("ha_earlier_") for name in files)
+    assert {item["note"] for item in store.list(("candidates",))} == {"lab"}
+    shutil.rmtree(source)

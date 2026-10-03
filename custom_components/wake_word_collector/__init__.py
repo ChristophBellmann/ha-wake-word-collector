@@ -131,6 +131,16 @@ def _register_services(hass: HomeAssistant) -> None:
     async def speaker_test(call: ServiceCall) -> dict[str, Any]:
         return await _trainer(call).client.speaker_test(call.data["route"])
 
+    async def import_folder(call: ServiceCall) -> dict[str, Any]:
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        folder = call.data["folder"]
+        inside_config = Path(folder).resolve().is_relative_to(Path(hass.config.config_dir).resolve())
+        if not (inside_config or hass.config.is_allowed_path(folder)):
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="folder_not_allowed")
+        return await collector.async_import(
+            folder, call.data["category"], call.data["device"], call.data.get("note", "")
+        )
+
     async def trim(call: ServiceCall) -> dict[str, Any]:
         collector = _collector(hass, call.data.get("config_entry_id"))
         data = call.data
@@ -200,6 +210,21 @@ def _register_services(hass: HomeAssistant) -> None:
         "speaker_test",
         speaker_test,
         schema=vol.Schema({ENTRY: cv.string, vol.Required("route"): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "import",
+        import_folder,
+        schema=vol.Schema(
+            {
+                ENTRY: cv.string,
+                vol.Required("folder"): cv.string,
+                vol.Required("category"): vol.In(["candidates", "negatives"]),
+                vol.Required("device"): cv.string,
+                vol.Optional("note"): cv.string,
+            }
+        ),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(

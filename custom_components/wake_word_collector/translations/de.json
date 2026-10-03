@@ -183,6 +183,12 @@
     },
     "trainer_no_model": {
       "message": "Der Trainer hat kein exportiertes Modell."
+    },
+    "folder_not_found": {
+      "message": "Den Ordner gibt es nicht."
+    },
+    "folder_not_allowed": {
+      "message": "Home Assistant darf diesen Ordner nicht lesen (allowlist_external_dirs)."
     }
   },
   "services": {
@@ -349,6 +355,32 @@
         "route": {
           "name": "Lautsprecher",
           "description": "Eine Route aus der speaker_test-Konfiguration des Trainer-Dienstes."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
+        }
+      }
+    },
+    "import": {
+      "name": "Aufnahmen importieren",
+      "description": "Vorhandene WAV-Aufnahmen (mono, 16 Bit), z. B. aus einer früheren Trainingsumgebung, als angenommene Aufnahmen oder als Negative übernehmen. Der Ordner muss in allowlist_external_dirs stehen oder unter dem Konfigurationsordner liegen.",
+      "fields": {
+        "folder": {
+          "name": "Ordner",
+          "description": "Wird rekursiv nach .wav-Dateien durchsucht."
+        },
+        "category": {
+          "name": "Als",
+          "description": "candidates: das Aktivierungswort; negatives: nicht das Aktivierungswort."
+        },
+        "device": {
+          "name": "Quellname",
+          "description": "Wird wie ein Satellitenname angezeigt, z. B. frueher."
+        },
+        "note": {
+          "name": "Hinweis",
+          "description": "Wird zu jeder Aufnahme gespeichert."
         },
         "config_entry_id": {
           "name": "Aktivierungswort",

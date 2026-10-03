@@ -159,6 +159,7 @@ The model contains no audio and is served without login.
 | `wake_word_collector.review` | accept, reject, or mark as not the wake word (`negative`) |
 | `wake_word_collector.review_latest_trigger` | judge the newest reported activation (`accept` or `negative`) |
 | `wake_word_collector.start_training` / `stop_training` | with a trainer service |
+| `wake_word_collector.import` | take over existing WAV recordings (e.g. from an earlier training setup) as accepted clips or negatives |
 | `wake_word_collector.speaker_test` | the trainer plays a held-out recording through a loudspeaker (`route`), to test a satellite live |
 | `wake_word_collector.review_latest` | note on, or reject, the newest usable clip |
 | `wake_word_collector.trim` | `keep`, `remove` or `extract` a window (ms) |

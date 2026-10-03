@@ -107,3 +107,24 @@ speaker_test:
       example: speakers
       selector:
         text:
+import:
+  fields:
+    config_entry_id: *entry
+    folder:
+      required: true
+      example: /config/wake_word_import/earlier
+      selector:
+        text:
+    category:
+      required: true
+      selector:
+        select:
+          options: [candidates, negatives]
+    device:
+      required: true
+      example: earlier
+      selector:
+        text:
+    note:
+      selector:
+        text:

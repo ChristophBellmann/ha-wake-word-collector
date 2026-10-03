@@ -63,6 +63,9 @@
     },
     "speaker_test": {
       "service": "mdi:speaker-play"
+    },
+    "import": {
+      "service": "mdi:folder-download"
     }
   }
 }

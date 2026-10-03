@@ -103,6 +103,9 @@ class Collector:
     async def async_review_latest_trigger(self, decision: str, device: str | None = None) -> dict:
         return await self._run(self.store.review_latest_trigger, decision, device)
 
+    async def async_import(self, folder: str, category: str, device: str, note: str = "") -> dict:
+        return await self._run(self.store.import_folder, Path(folder), category, device, note)
+
     async def async_negatives(self) -> list[dict]:
         return await self.hass.async_add_executor_job(self.store.negatives)
 
