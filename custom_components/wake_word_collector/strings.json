@@ -14,7 +14,7 @@
           "phrase": "As your speech-to-text writes it, e.g. Hey Jarvis.",
           "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
           "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
-          "storage": "Empty: <config>/wake_word_collector/<wake word>. Recordings are voice data: keep the folder out of public backups."
+          "storage": "Empty: the folder wake_word_collector/(wake word) in the configuration directory. Recordings are voice data: keep the folder out of public backups."
         }
       },
       "device_settings": {
@@ -42,7 +42,7 @@
         "data_description": {
           "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
           "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
-          "storage": "Empty: <config>/wake_word_collector/<wake word>. Recordings are voice data: keep the folder out of public backups."
+          "storage": "Empty: the folder wake_word_collector/(wake word) in the configuration directory. Recordings are voice data: keep the folder out of public backups."
         }
       }
     },

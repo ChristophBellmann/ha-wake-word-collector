@@ -14,7 +14,7 @@
           "phrase": "So, wie deine Spracherkennung es schreibt, z. B. Hey Jarvis.",
           "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
           "control_words": "Durch Kommas getrennt. Aufnahmen mit diesen Wörtern (z. B. „ich bin fertig“) werden als Befehle getrennt abgelegt.",
-          "storage": "Leer: <config>/wake_word_collector/<Aktivierungswort>. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
+          "storage": "Leer: der Ordner wake_word_collector/(Aktivierungswort) im Konfigurationsverzeichnis. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
         }
       },
       "device_settings": {
@@ -42,7 +42,7 @@
         "data_description": {
           "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
           "control_words": "Durch Kommas getrennt. Aufnahmen mit diesen Wörtern (z. B. „ich bin fertig“) werden als Befehle getrennt abgelegt.",
-          "storage": "Leer: <config>/wake_word_collector/<Aktivierungswort>. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
+          "storage": "Leer: der Ordner wake_word_collector/(Aktivierungswort) im Konfigurationsverzeichnis. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
         }
       }
     },

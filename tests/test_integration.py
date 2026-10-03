@@ -240,3 +240,21 @@ async def test_blueprint_sentences(hass: HomeAssistant, entry, tmp_path: Path, h
     )
     assert await say("I am done") == "Wake word recording stopped."
     assert hass.states.get("sensor.hey_nova_satellite_command").state.startswith("stop:*:")
+
+
+async def test_entity_ids_do_not_depend_on_language(hass: HomeAssistant, tmp_path: Path) -> None:
+    hass.config.language = "de"
+    assert await async_setup_component(hass, "http", {})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Hey Nova",
+        unique_id="hey_nova",
+        data={CONF_SLUG: "hey_nova", CONF_TOKEN: TOKEN},
+        options={CONF_PHRASE: "Hey Nova", CONF_STORAGE: str(tmp_path / "clips")},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.hey_nova_satellite_command") is not None
+    recordings = hass.states.get("sensor.hey_nova_recordings")
+    assert recordings.attributes["friendly_name"] == "Hey Nova Aufnahmen"

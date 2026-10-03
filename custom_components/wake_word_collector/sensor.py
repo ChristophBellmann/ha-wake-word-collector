@@ -13,7 +13,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .collector import Collector
-from .const import DOMAIN, SIGNAL_UPDATE
+from .const import CONF_SLUG, DOMAIN, SIGNAL_UPDATE
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEntitiesCallback) -> None:
@@ -29,6 +29,8 @@ class _Base(SensorEntity):
         self.collector = collector
         self._attr_translation_key = key
         self._attr_unique_id = f"{collector.entry.entry_id}_{key}"
+        # Fixed ids in every language: satellites and blueprints refer to them.
+        self.entity_id = f"sensor.{collector.entry.data[CONF_SLUG]}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, collector.entry.entry_id)},
             name=collector.entry.title,
