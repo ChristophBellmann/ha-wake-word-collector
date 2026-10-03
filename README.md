@@ -32,8 +32,10 @@ in your rooms, with your voices, for training a custom wake word model
 6. On the **review card** you listen, accept or reject, and trim clips in a
    waveform editor (keep, delete or extract a selection as a new clip).
    Originals are backed up before every edit.
-7. Your training pipeline downloads the usable clips through a token-protected
-   export.
+7. [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
+   fetches the usable clips through a token-protected export, trains a
+   microWakeWord model, measures it on your held-out recordings and exports
+   it for `micro_wake_word` on the satellites.
 
 ## Requirements
 
@@ -121,7 +123,15 @@ to a dashboard. Texts follow your Home Assistant language (English, German).
 Entities: `sensor.<wake word>_recordings` (usable clips; attributes with the
 other counts and the last upload) and `sensor.<wake word>_satellite_command`.
 
-## Training export
+## Training
+
+[Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
+is made for these recordings: put the collector URL and token into its
+project and run it; it fetches the accepted clips, keeps a stable share of
+them for an honest evaluation, adds synthetic speech and returns a model for
+ESPHome. Clips you reject here disappear from training on the next run.
+
+Any other pipeline can use the export directly:
 
 ```bash
 curl -H "X-Wakeword-Token: $TOKEN" http://homeassistant.local:8123/api/wake_word_collector/export/hey_jarvis
@@ -175,7 +185,9 @@ Ablauf: zum Satelliten „Aktivierungswort aufnehmen“ sagen, dann nur noch das
 Aktivierungswort sprechen, beliebig oft, auch mehrmals hintereinander (wird
 getrennt), am Ende „ich bin fertig“. Home Assistant sortiert: verwendbar, zu
 prüfen, Befehl, verworfen. In der Prüf-Karte anhören, annehmen, verwerfen und
-mit der Wellenform zuschneiden.
+mit der Wellenform zuschneiden. Trainiert wird mit dem
+[Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer),
+der die angenommenen Aufnahmen direkt aus dem Collector holt.
 
 Einrichtung wie oben: Integration hinzufügen (Aktivierungswort, Varianten,
 Befehlswörter wie „fertig, reicht“), das ESPHome-Paket in jeden Satelliten
