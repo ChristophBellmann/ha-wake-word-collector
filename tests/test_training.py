@@ -158,6 +158,7 @@ async def trained(hass: HomeAssistant, tmp_path: Path, aioclient_mock: AiohttpCl
     aioclient_mock.get(f"{TRAINER}/v1/status", json=status)
     aioclient_mock.get(f"{TRAINER}/v1/model/hey_nova.json", text=json.dumps(manifest))
     aioclient_mock.get(f"{TRAINER}/v1/model/hey_nova.tflite", content=b"TFL3-model")
+    aioclient_mock.get(f"{TRAINER}/v1/report", json={"curve": [{"cutoff": 0.9, "recall": 0.95, "faph": 0.3}]})
     aioclient_mock.post(f"{TRAINER}/v1/start", status=202, json={"started": "quick"})
     aioclient_mock.post(f"{TRAINER}/v1/stop", json={"stopped": True})
     aioclient_mock.post(f"{TRAINER}/v1/speaker_test", json={"route": "speakers", "clip": "recordings/eval/x.wav"})
@@ -194,6 +195,8 @@ async def test_trainer_entities_and_model(hass: HomeAssistant, trained, aioclien
     assert model.attributes["url"] == "/api/wake_word_collector/model/hey_nova/hey_nova.json"
     assert model.attributes["probability_cutoff"] == 0.91 and len(events) == 1
     assert (tmp_path / "clips" / "model" / "hey_nova.tflite").read_bytes() == b"TFL3-model"
+    source = json.loads((tmp_path / "clips" / "model" / "source.json").read_text())
+    assert source["report"]["curve"][0]["recall"] == 0.95
     client = await hass_client_no_auth()
     served = await client.get("/api/wake_word_collector/model/hey_nova/hey_nova.json")
     assert served.status == 200 and (await served.json())["model"] == "hey_nova.tflite"

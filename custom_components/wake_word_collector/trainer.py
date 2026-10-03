@@ -74,6 +74,9 @@ class TrainerClient:
     async def speaker_test(self, route: str) -> dict[str, Any]:
         return await self._json("POST", "/v1/speaker_test", {"route": route}, aiohttp.ClientTimeout(total=45))
 
+    async def report(self) -> dict[str, Any]:
+        return await self._json("GET", "/v1/report")
+
     async def model_file(self, name: str) -> bytes:
         status, data = await self._request("GET", f"/v1/model/{name}", timeout=aiohttp.ClientTimeout(total=60))
         if status != 200:
@@ -127,6 +130,11 @@ class TrainerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (TrainerError, json.JSONDecodeError) as err:
             _LOGGER.warning("Could not take over the trained model: %s", err)
             return
+        try:
+            # Recall and false activations over all cutoffs, e.g. for a sensitivity ladder.
+            report = await self.client.report()
+        except TrainerError:
+            report = {}
         if data.get("model") != f"{slug}.tflite":
             _LOGGER.warning("Trained model manifest names %s, expected %s.tflite", data.get("model"), slug)
             return
@@ -138,7 +146,7 @@ class TrainerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "message": status.get("message", ""),
             "url": MODEL_URL.format(slug=slug, filename=f"{slug}.json"),
         }
-        await self.hass.async_add_executor_job(self._write_model, manifest, model, info)
+        await self.hass.async_add_executor_job(self._write_model, manifest, model, {**info, "report": report})
         self.model = info
         self.hass.bus.async_fire(MODEL_EVENT, {"slug": slug, **info})
         persistent_notification.async_create(
