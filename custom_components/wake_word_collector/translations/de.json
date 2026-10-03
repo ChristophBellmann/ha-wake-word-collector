@@ -411,7 +411,11 @@
         },
         "satellite": {
           "name": "Assist-Satellit",
-          "description": "Seine assist_satellite-Entität, falls sie nicht automatisch aus der Firmware erkannt wird (schneller als das Warten auf die Auslösungsmeldung)."
+          "description": "Seine assist_satellite-Entität, falls sie nicht automatisch aus der Firmware erkannt wird. Wird je Satellit gemerkt."
+        },
+        "test_switch": {
+          "name": "Testmodus-Schalter",
+          "description": "Optional: ein Schalter des Satelliten, der während des Tests an ist, z. B. einer, der Erkennungen zählt, ohne die Sprachassistenz zu starten. Wird je Satellit gemerkt; leer vergisst ihn."
         },
         "config_entry_id": {
           "name": "Aktivierungswort",

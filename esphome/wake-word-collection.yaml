@@ -31,6 +31,9 @@
 # word or as a false alarm (card, or say "false alarm"). False alarms become
 # training data the model learns to ignore. The audio is uploaded after the
 # voice assistant finished, so answering is never delayed.
+#
+# Every satellite also counts its wake word detections (sensor "Wake word
+# detections"); the loudspeaker test of the integration uses it.
 
 defaults:
   wake_word_device: voice-satellite
@@ -58,12 +61,17 @@ globals:
     type: bool
     restore_value: no
     initial_value: "false"
+  - id: wake_word_detection_count
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
 
 esphome:
   on_boot:
     - priority: -100
       then:
         - script.execute: wake_word_trigger_listen
+        - component.update: wake_word_detections
 
 external_components:
   - source: ${wake_word_components}
@@ -174,8 +182,21 @@ button:
       - script.execute: wake_word_collection_stop_now
       - script.execute: wake_word_trigger_listen
 
+sensor:
+  - platform: template
+    name: Wake word detections
+    id: wake_word_detections
+    icon: mdi:counter
+    accuracy_decimals: 0
+    state_class: total_increasing
+    entity_category: diagnostic
+    update_interval: never
+    lambda: return id(wake_word_detection_count);
+
 micro_wake_word:
   on_wake_word_detected:
+    - lambda: id(wake_word_detection_count) += 1;
+    - component.update: wake_word_detections
     - if:
         condition:
           lambda: return ${wake_word_report_triggers} && !id(wake_word_collection_active);

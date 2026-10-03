@@ -158,3 +158,58 @@ async def test_speaker_test_needs_a_satellite_that_works(hass: HomeAssistant, tr
     hass.states.async_set("assist_satellite.kitchen", "unavailable")
     result = await collector.speaker_test.async_run(satellite="assist_satellite.kitchen")
     assert result["state"] == "failed" and "not available" in result["message"]
+
+
+async def test_speaker_test_counter_and_test_mode(hass: HomeAssistant, trained, hass_client_no_auth, quick) -> None:  # noqa: F811
+    config_entry, _, _ = trained
+    collector = config_entry.runtime_data
+    client = await hass_client_no_auth()
+    esphome = MockConfigEntry(domain="esphome", data={"device_name": "atom-node"})
+    esphome.add_to_hass(hass)
+    registry = er.async_get(hass)
+    satellite = registry.async_get_or_create(
+        "assist_satellite", "esphome", "atom-sat", config_entry=esphome, suggested_object_id="atom"
+    )
+    counter = registry.async_get_or_create(
+        "sensor", "esphome", "aa:bb-sensor-wake_word_detections", config_entry=esphome, suggested_object_id="atom_det"
+    )
+    hass.states.async_set(satellite.entity_id, "idle")
+    hass.states.async_set(counter.entity_id, "unknown")
+    from homeassistant.setup import async_setup_component
+
+    assert await async_setup_component(hass, "input_boolean", {"input_boolean": {"atom_test_mode": {}}})
+    assert (await _report(client, device="atom", node="atom-node")).status == 201
+    detections = 0
+    modes = []
+
+    async def play(route: str) -> dict:
+        nonlocal detections
+        modes.append(hass.states.get("input_boolean.atom_test_mode").state)
+        if len(modes) != 3:  # in test mode the satellite only counts, it stays idle
+            detections += 1
+            hass.states.async_set(counter.entity_id, str(detections))
+        return {"route": route}
+
+    collector.trainer.client.speaker_test = play
+    result = await hass.services.async_call(
+        DOMAIN,
+        "run_speaker_test",
+        {"device": "atom", "clips": 3, "test_switch": "input_boolean.atom_test_mode"},
+        blocking=True,
+        return_response=True,
+    )
+    assert modes == ["on", "on", "on"]
+    assert hass.states.get("input_boolean.atom_test_mode").state == "off"
+    assert (result["detected"], result["detections"], result["satellite"]) == (
+        2,
+        counter.entity_id,
+        satellite.entity_id,
+    )
+    # The test mode switch is remembered for this satellite.
+    assert collector.speaker_test.test_switch("atom") == "input_boolean.atom_test_mode"
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": "select.hey_nova_speaker_test_device", "option": "atom"}, blocking=True
+    )
+    attributes = hass.states.get("select.hey_nova_speaker_test_device").attributes
+    assert attributes["test_switch"] == "input_boolean.atom_test_mode"
+    assert attributes["detections"] == counter.entity_id

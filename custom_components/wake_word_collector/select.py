@@ -59,7 +59,12 @@ class SpeakerTestDevice(CollectorEntity, SelectEntity):
     def extra_state_attributes(self) -> dict:
         test = self.collector.speaker_test
         device = test.device
-        return {"node": self.collector.node(device or ""), "satellite": test.satellite(device)}
+        return {
+            "node": self.collector.node(device or ""),
+            "satellite": test.satellite(device),
+            "detections": test.detections(device),
+            "test_switch": test.test_switch(device),
+        }
 
     async def async_select_option(self, option: str) -> None:
         self.collector.update_settings(speaker_test={"device": option})

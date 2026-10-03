@@ -139,7 +139,11 @@ def _register_services(hass: HomeAssistant) -> None:
         collector = _collector(hass, call.data.get("config_entry_id"))
         data = call.data
         return await collector.speaker_test.async_run(
-            device=data.get("device"), route=data.get("route"), clips=data.get("clips"), satellite=data.get("satellite")
+            device=data.get("device"),
+            route=data.get("route"),
+            clips=data.get("clips"),
+            satellite=data.get("satellite"),
+            test_switch=data.get("test_switch"),
         )
 
     async def import_folder(call: ServiceCall) -> dict[str, Any]:
@@ -234,6 +238,9 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("route"): cv.string,
                 vol.Optional("clips"): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_CLIPS)),
                 vol.Optional("satellite"): cv.entity_id,
+                vol.Optional("test_switch"): vol.Any(
+                    "", vol.All(cv.entity_id, cv.entity_domain(["switch", "input_boolean"]))
+                ),
             }
         ),
         supports_response=SupportsResponse.OPTIONAL,

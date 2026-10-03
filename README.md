@@ -184,12 +184,19 @@ and `number.<wake word>_speaker_test_clips`, press
 recognized) is `sensor.<wake word>_speaker_test`. The route is remembered per
 satellite.
 
-A recognition is seen when the satellite's assist satellite entity leaves
-*idle*. The integration finds that entity through the ESPHome node name the
+A recognition is seen when the satellite's *Wake word detections* sensor
+(part of the ESPHome package) goes up or its assist satellite entity leaves
+*idle*. The integration finds both through the ESPHome node name the
 firmware sends with every upload; set `satellite` in the service call if it
-cannot. Without it, the activation report (`wake_word_report_triggers`)
+cannot. Without them, the activation report (`wake_word_report_triggers`)
 counts, which takes up to 30 s per recording. Reports of played-back
 recordings are not stored: they are evaluation clips, not new examples.
+
+Each recognition normally starts a real conversation, and the test waits
+until the satellite is idle again. If a satellite has a switch that only
+counts detections without starting the voice assistant, pass it once as
+`test_switch` to `run_speaker_test`: it is remembered for that satellite,
+turned on for every test and always off again afterwards.
 
 ## Services
 

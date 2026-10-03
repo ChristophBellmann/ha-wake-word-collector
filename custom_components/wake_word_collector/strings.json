@@ -411,7 +411,11 @@
         },
         "satellite": {
           "name": "Assist satellite",
-          "description": "Its assist_satellite entity, if not found automatically from the firmware (faster than waiting for the activation report)."
+          "description": "Its assist_satellite entity, if not found automatically from the firmware. Remembered per satellite."
+        },
+        "test_switch": {
+          "name": "Test mode switch",
+          "description": "Optional: a switch of the satellite turned on during the test, e.g. one that counts detections without starting the voice assistant. Remembered per satellite; empty forgets it."
         },
         "config_entry_id": {
           "name": "Wake word",
