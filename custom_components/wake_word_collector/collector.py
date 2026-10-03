@@ -96,8 +96,10 @@ class Collector:
 
     @property
     def devices(self) -> list[str]:
-        """Every device that sent recordings (also from earlier firmware)."""
-        return sorted(set(self.stats.get("devices", [])) | set(self.settings.get("nodes", {})))
+        """Every device that sent recordings (also from earlier firmware), or
+        that was named in a loudspeaker test (satellites that do not collect)."""
+        tested = self.settings.get("speaker_test", {}).get("routes", {})
+        return sorted(set(self.stats.get("devices", [])) | set(self.settings.get("nodes", {})) | set(tested))
 
     def node(self, device: str) -> str | None:
         """ESPHome node name of a recording device, as reported by its firmware."""

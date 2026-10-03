@@ -213,3 +213,23 @@ async def test_speaker_test_counter_and_test_mode(hass: HomeAssistant, trained, 
     attributes = hass.states.get("select.hey_nova_speaker_test_device").attributes
     assert attributes["test_switch"] == "input_boolean.atom_test_mode"
     assert attributes["detections"] == counter.entity_id
+
+
+async def test_satellite_without_recordings(hass: HomeAssistant, trained, quick) -> None:  # noqa: F811
+    config_entry, _, _ = trained
+    collector = config_entry.runtime_data
+    hass.states.async_set("assist_satellite.door", "idle")
+
+    async def play(route: str) -> dict:
+        return {"route": route}
+
+    collector.trainer.client.speaker_test = play
+    result = await collector.speaker_test.async_run(
+        device="door", route="usb", clips=1, satellite="assist_satellite.door"
+    )
+    assert result["played"] == 1 and result["detected"] == 0
+    await hass.async_block_till_done()
+    # Named once, it stays selectable with its satellite and route.
+    assert "door" in hass.states.get("select.hey_nova_speaker_test_device").attributes["options"]
+    assert collector.speaker_test.satellite("door") == "assist_satellite.door"
+    assert collector.speaker_test.route("door") == "usb"
