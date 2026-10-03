@@ -45,6 +45,8 @@ class Collector:
         self.command = COMMAND_IDLE
         self.stats: dict[str, Any] = {}
         self.last_upload: dict[str, Any] | None = None
+        # TrainerCoordinator when a Wake Word Trainer service is configured.
+        self.trainer = None
 
     @property
     def slug(self) -> str:
@@ -86,8 +88,8 @@ class Collector:
         await self.async_refresh()
         return result
 
-    async def async_add(self, device: str, transcript: str, body: bytes) -> list[dict]:
-        records = await self._run(self.store.add, device, transcript, body)
+    async def async_add(self, device: str, transcript: str, body: bytes, kind: str = "utterance") -> list[dict]:
+        records = await self._run(self.store.add, device, transcript, body, kind)
         self.last_upload = records[-1]
         self.notify()
         return records
@@ -97,6 +99,17 @@ class Collector:
 
     async def async_review_latest(self, note: str, decision: str = "note", device: str | None = None) -> dict:
         return await self._run(self.store.review_latest, note, decision, device)
+
+    async def async_review_latest_trigger(self, decision: str, device: str | None = None) -> dict:
+        return await self._run(self.store.review_latest_trigger, decision, device)
+
+    async def async_negatives(self) -> list[dict]:
+        return await self.hass.async_add_executor_job(self.store.negatives)
+
+    @property
+    def model_dir(self) -> Path:
+        """Where the trained model for the satellites is kept (from the trainer)."""
+        return self.store.root / "model"
 
     async def async_trim(self, category: str, device: str, filename: str, start_ms, end_ms, mode: str) -> dict:
         return await self._run(self.store.trim, category, device, filename, start_ms, end_ms, mode)

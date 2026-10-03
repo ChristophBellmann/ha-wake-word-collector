@@ -15,12 +15,13 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from . import intents
-from .collect import REVIEWABLE
+from .collect import DECISIONS, REVIEWABLE
 from .collector import Collector
-from .const import AUDIO_URL, CARD_URL, DOMAIN
+from .const import AUDIO_URL, CARD_URL, CONF_TRAINER_TOKEN, CONF_TRAINER_URL, DOMAIN
+from .trainer import TrainerClient, TrainerCoordinator
 from .views import VIEWS
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SELECT, Platform.SENSOR]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 ENTRY = vol.Optional("config_entry_id")
 
@@ -52,6 +53,12 @@ async def _register_card(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     collector = Collector(hass, entry)
     await collector.async_setup()
+    if entry.options.get(CONF_TRAINER_URL):
+        client = TrainerClient(hass, entry.options[CONF_TRAINER_URL], entry.options.get(CONF_TRAINER_TOKEN, ""))
+        collector.trainer = TrainerCoordinator(hass, collector, client)
+        await collector.trainer.async_load_model_info()
+        # The training computer may be off; entities then show it as unavailable.
+        await collector.trainer.async_refresh()
     hass.data[DOMAIN][entry.entry_id] = collector
     entry.runtime_data = collector
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -99,6 +106,31 @@ def _register_services(hass: HomeAssistant) -> None:
         collector = _collector(hass, call.data.get("config_entry_id"))
         return await collector.async_review_latest(call.data["note"], call.data["decision"], call.data.get("device"))
 
+    async def review_latest_trigger(call: ServiceCall) -> dict[str, Any]:
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        return await collector.async_review_latest_trigger(call.data["decision"], call.data.get("device"))
+
+    def _trainer(call: ServiceCall) -> TrainerCoordinator:
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        if collector.trainer is None:
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="no_trainer")
+        return collector.trainer
+
+    async def start_training(call: ServiceCall) -> dict[str, Any]:
+        trainer = _trainer(call)
+        result = await trainer.client.start(call.data.get("profile") or trainer.profile or "recommended")
+        await trainer.async_request_refresh()
+        return result
+
+    async def stop_training(call: ServiceCall) -> dict[str, Any]:
+        trainer = _trainer(call)
+        result = await trainer.client.stop()
+        await trainer.async_request_refresh()
+        return result
+
+    async def speaker_test(call: ServiceCall) -> dict[str, Any]:
+        return await _trainer(call).client.speaker_test(call.data["route"])
+
     async def trim(call: ServiceCall) -> dict[str, Any]:
         collector = _collector(hass, call.data.get("config_entry_id"))
         data = call.data
@@ -119,9 +151,7 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         "review",
         review,
-        schema=vol.Schema(
-            {**clip, vol.Required("decision"): vol.In(["accept", "reject"]), vol.Optional("note"): cv.string}
-        ),
+        schema=vol.Schema({**clip, vol.Required("decision"): vol.In(list(DECISIONS)), vol.Optional("note"): cv.string}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
@@ -136,6 +166,40 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("device"): cv.string,
             }
         ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "review_latest_trigger",
+        review_latest_trigger,
+        schema=vol.Schema(
+            {
+                ENTRY: cv.string,
+                vol.Required("decision"): vol.In(["accept", "negative"]),
+                vol.Optional("device"): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "start_training",
+        start_training,
+        schema=vol.Schema({ENTRY: cv.string, vol.Optional("profile"): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "stop_training",
+        stop_training,
+        schema=vol.Schema({ENTRY: cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "speaker_test",
+        speaker_test,
+        schema=vol.Schema({ENTRY: cv.string, vol.Required("route"): cv.string}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(

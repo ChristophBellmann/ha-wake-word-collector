@@ -19,7 +19,7 @@ review:
       required: true
       selector:
         select:
-          options: [candidates, needs_review, rejected_transcript]
+          options: [candidates, needs_review, rejected_transcript, triggers, control, negatives]
     device: &clip_device
       required: true
       selector:
@@ -32,7 +32,7 @@ review:
       required: true
       selector:
         select:
-          options: [accept, reject]
+          options: [accept, reject, negative]
     note:
       selector:
         text:
@@ -78,3 +78,32 @@ trim:
       selector:
         select:
           options: [keep, remove, extract]
+review_latest_trigger:
+  fields:
+    config_entry_id: *entry
+    decision:
+      required: true
+      selector:
+        select:
+          options: [accept, negative]
+    device:
+      selector:
+        text:
+start_training:
+  fields:
+    config_entry_id: *entry
+    profile:
+      example: recommended
+      selector:
+        text:
+stop_training:
+  fields:
+    config_entry_id: *entry
+speaker_test:
+  fields:
+    config_entry_id: *entry
+    route:
+      required: true
+      example: speakers
+      selector:
+        text:

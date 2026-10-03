@@ -148,7 +148,7 @@ bool WakewordRecorder::start_capture() {
   return true;
 }
 
-bool WakewordRecorder::finish_capture(const std::string &transcript) {
+bool WakewordRecorder::finish_capture(const std::string &transcript, const std::string &kind) {
   LockGuard guard{this->mutex_};
   if (!this->recording_ || this->pcm_.empty()) {
     ESP_LOGW(TAG, "No active capture to finish");
@@ -156,6 +156,7 @@ bool WakewordRecorder::finish_capture(const std::string &transcript) {
   }
   this->recording_ = false;
   this->transcript_ = transcript;
+  this->kind_ = kind;
   this->upload_pending_ = true;
   return true;
 }
@@ -166,6 +167,7 @@ void WakewordRecorder::discard_capture() {
   this->capture_after_upload_ = false;
   if (!this->upload_pending_ && !this->uploading_) {
     this->transcript_.clear();
+    this->kind_.clear();
     this->pcm_.clear();
     this->write_position_ = 0;
     this->buffer_full_ = false;
@@ -252,22 +254,25 @@ void WakewordRecorder::loop() {
 
 bool WakewordRecorder::upload_capture() {
   std::string transcript;
+  std::string kind;
   bool capture_after_upload = false;
   {
     LockGuard guard{this->mutex_};
     if (!this->upload_pending_)
       return false;
     transcript = this->transcript_;
+    kind = this->kind_;
     this->upload_pending_ = false;
     this->uploading_ = true;
   }
-  this->upload_(transcript);
+  this->upload_(transcript, kind);
   {
     LockGuard guard{this->mutex_};
     this->pcm_.clear();
     this->write_position_ = 0;
     this->buffer_full_ = false;
     this->transcript_.clear();
+    this->kind_.clear();
     this->uploading_ = false;
     capture_after_upload = this->capture_after_upload_;
     this->capture_after_upload_ = false;
@@ -317,7 +322,7 @@ static bool write_all(esp_http_client_handle_t client, const char *data, size_t 
 }
 #endif
 
-void WakewordRecorder::upload_(const std::string &transcript) {
+void WakewordRecorder::upload_(const std::string &transcript, const std::string &kind) {
   std::string safe_transcript = transcript;
   std::replace(safe_transcript.begin(), safe_transcript.end(), '\r', ' ');
   std::replace(safe_transcript.begin(), safe_transcript.end(), '\n', ' ');
@@ -342,6 +347,8 @@ void WakewordRecorder::upload_(const std::string &transcript) {
   esp_http_client_set_header(client, "X-Wakeword-Token", this->token_.c_str());
   esp_http_client_set_header(client, "X-Wakeword-Device", this->device_.c_str());
   esp_http_client_set_header(client, "X-Wakeword-Transcript", safe_transcript.c_str());
+  if (!kind.empty())
+    esp_http_client_set_header(client, "X-Wakeword-Kind", kind.c_str());
   const int body_size = static_cast<int>(header.size() + this->pcm_.size());
   esp_err_t error = esp_http_client_open(client, body_size);
   bool wrote_body = error == ESP_OK && write_all(client, header.data(), header.size()) &&
@@ -366,6 +373,8 @@ void WakewordRecorder::upload_(const std::string &transcript) {
   std::vector<http_request::Header> headers{
       {"Content-Type", "audio/wav"}, {"X-Wakeword-Token", this->token_}, {"X-Wakeword-Device", this->device_}};
   headers.push_back({"X-Wakeword-Transcript", safe_transcript});
+  if (!kind.empty())
+    headers.push_back({"X-Wakeword-Kind", kind});
   auto response = this->http_request_->post(this->url_, wav, headers);
   if (response == nullptr) {
     ESP_LOGE(TAG, "Upload failed for %s", this->device_.c_str());

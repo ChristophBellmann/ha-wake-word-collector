@@ -45,6 +45,24 @@ function card(language) {
   de.render();
   assert.ok(!de.shadowRoot.innerHTML.includes('ha_bath'));
 
+  // A reported activation: judged as the wake word or as a false alarm.
+  const trigger = {category: 'triggers', device: 'kitchen', filename: 'ha_kitchen_20261003T130000_cccccccccccc.wav', created_at: '2026-10-03T13:00:00Z', transcript: '', duration_ms: 3000, audio_path: '/c'};
+  items.push(trigger);
+  de.collectors[0].stats.triggers = 1;
+  de.filter = 'triggers';
+  de.render();
+  html = de.shadowRoot.innerHTML;
+  assert.ok(html.includes('War das Aktivierungswort') && html.includes('Fehlalarm') && html.includes('Auslösung'));
+  assert.ok(!html.includes('ha_kitchen_20261003T120000'), 'Only activations in this view.');
+  await de.review(trigger, 'negative');
+  assert.equal(calls.at(-1)[2].decision, 'negative');
+  assert.equal(calls.at(-1)[2].category, 'triggers');
+  de.collectors[0].stats.triggers = 1;  // reloaded after the decision
+  de.filter = 'all';
+  de.render();
+  assert.ok(de.shadowRoot.innerHTML.includes('1 Auslösungen zu bewerten'));
+  items.pop();
+
   const en = card('fr');
   await en.load();
   assert.ok(en.shadowRoot.innerHTML.includes('1 usable · 1 to check · 2 in total'));

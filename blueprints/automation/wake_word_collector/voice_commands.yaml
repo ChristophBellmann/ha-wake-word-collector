@@ -53,6 +53,21 @@ blueprint:
       default: Wake word recording stopped.
       selector:
         text:
+    false_alarm:
+      name: False alarm sentences
+      description: >-
+        Said right after the assistant woke up by mistake. Marks the activation the
+        satellite reported as not the wake word, so the next training learns to ignore it
+        (needs wake_word_report_triggers in the ESPHome package).
+      default: ["i did not call you", "false alarm", "that was a false alarm", "nobody called you"]
+      selector:
+        text:
+          multiple: true
+    false_alarm_response:
+      name: Answer to a false alarm
+      default: Sorry, I noted it.
+      selector:
+        text:
     stats_response:
       name: Answer with statistics
       description: "{usable}, {to_check} and {total} are replaced."
@@ -80,6 +95,9 @@ triggers:
   - trigger: conversation
     command: !input stats
     id: stats
+  - trigger: conversation
+    command: !input false_alarm
+    id: false_alarm
 
 actions:
   - choose:
@@ -109,3 +127,12 @@ actions:
                  | replace('{usable}', states(recordings))
                  | replace('{to_check}', state_attr(recordings, 'needs_review') | string)
                  | replace('{total}', state_attr(recordings, 'total') | string) }}
+      - conditions:
+          - condition: trigger
+            id: false_alarm
+        sequence:
+          - action: wake_word_collector.review_latest_trigger
+            data:
+              decision: negative
+            continue_on_error: true
+          - set_conversation_response: !input false_alarm_response

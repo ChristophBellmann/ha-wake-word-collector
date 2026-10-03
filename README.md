@@ -26,6 +26,8 @@ in your rooms, with your voices, for training a custom wake word model
    | **to check** (`needs_review`) | anything else: an unusual pronunciation is kept, not lost |
    | command (`control`) | contains a command word such as "done" |
    | rejected (`rejected_quality`) | too quiet, clipped or with DC offset, or rejected by you; kept for recovery |
+   | not the wake word (`negatives`) | marked by you: the model learns to ignore it |
+   | activation (`triggers`) | optional: what a satellite heard right before it woke up, to judge |
 
 5. *"I am done"* ends collection mode. *"The last one was bad, a car drove by"*
    rejects the last clip (or just notes the noise).
@@ -111,19 +113,60 @@ github://ChristophBellmann/ha-wake-word-collector@<version>`.
 The card is loaded automatically; add `type: custom:wake-word-collector-card`
 to a dashboard. Texts follow your Home Assistant language (English, German).
 
+### 5. False alarms (optional)
+
+With `wake_word_report_triggers: "true"` in the package vars, every satellite
+also reports its wake word activations outside collection mode: the last
+seconds before the detection, uploaded after the voice assistant finished.
+In the card (view *Activations*) mark each one as *Was the wake word* (more
+real examples) or *False alarm*; or simply say *"I did not call you"* /
+*"Fehlalarm"* right after a wrong activation (intent for LLM agents, sentences
+in the blueprint). False alarms, clips marked *Not the wake word*, and command
+recordings without the wake word are exported as negatives: the next
+training learns to ignore exactly what woke your satellites up.
+
+## Training from Home Assistant
+
+With [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
+running as a service on the training computer (`wake-word-trainer serve`),
+enter its address and token under *Configure*. You get:
+
+| Entity | |
+| --- | --- |
+| `sensor.<wake word>_training` | idle, running, completed, failed …; round, step, best recall and false activations per hour as attributes |
+| `sensor.<wake word>_training_progress` | percent |
+| `select.<wake word>_training_profile`, `button.<wake word>_start_training`, `button.<wake word>_stop_training` | start and stop with a profile of the service |
+| `binary_sensor.<wake word>_trainer` | the training computer is reachable |
+| `sensor.<wake word>_model` | the last finished model, taken over automatically |
+
+The finished model is served by Home Assistant for the satellites:
+
+```yaml
+micro_wake_word:
+  models:
+    - model: http://homeassistant.local:8123/api/wake_word_collector/model/hey_jarvis/hey_jarvis.json
+```
+
+ESPHome downloads it when compiling: flash the satellites after a new model
+(a notification and the event `wake_word_collector_model_ready` tell you).
+The model contains no audio and is served without login.
+
 ## Services
 
 | Service | |
 | --- | --- |
 | `wake_word_collector.start` / `stop` | collection mode; `device` = the satellite's `wake_word_device`, empty = the satellite running the current voice command |
-| `wake_word_collector.review` | accept or reject a clip |
+| `wake_word_collector.review` | accept, reject, or mark as not the wake word (`negative`) |
+| `wake_word_collector.review_latest_trigger` | judge the newest reported activation (`accept` or `negative`) |
+| `wake_word_collector.start_training` / `stop_training` | with a trainer service |
+| `wake_word_collector.speaker_test` | the trainer plays a held-out recording through a loudspeaker (`route`), to test a satellite live |
 | `wake_word_collector.review_latest` | note on, or reject, the newest usable clip |
 | `wake_word_collector.trim` | `keep`, `remove` or `extract` a window (ms) |
 
 Entities: `sensor.<wake word>_recordings` (usable clips; attributes with the
 other counts and the last upload) and `sensor.<wake word>_satellite_command`.
 
-## Training
+## Training on the command line, or with another pipeline
 
 [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
 is made for these recordings: put the collector URL and token into its
@@ -138,7 +181,8 @@ curl -H "X-Wakeword-Token: $TOKEN" http://homeassistant.local:8123/api/wake_word
 ```
 
 returns the usable clips with an `audio_url` each, downloadable with the same
-header. Rejected clips never appear there.
+header. Rejected clips never appear there. `/export/<wake word>/negatives`
+lists the clips that are not the wake word, in the same way.
 
 ## Privacy
 
@@ -151,13 +195,13 @@ token.
 ## Storage layout
 
 ```text
-<storage>/candidates|needs_review|control|rejected_quality/<device>/ha_<device>_<time>_<hash>.wav
+<storage>/candidates|needs_review|control|rejected_quality|negatives|triggers/<device>/ha_<device>_<time>_<hash>.wav
 <storage>/manifest.jsonl   one line per clip: transcript, duration, level, quality
 <storage>/reviews.jsonl    one line per review
 <storage>/trim_backups/
 ```
 
-Folders of earlier standalone collectors with the same layout can be used as
+`model/` holds the model taken over from the trainer. Folders of earlier standalone collectors with the same layout can be used as
 storage folder directly (`rejected_transcript` counts as "to check").
 
 ## Development
@@ -187,7 +231,12 @@ getrennt), am Ende „ich bin fertig“. Home Assistant sortiert: verwendbar, zu
 prüfen, Befehl, verworfen. In der Prüf-Karte anhören, annehmen, verwerfen und
 mit der Wellenform zuschneiden. Trainiert wird mit dem
 [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer),
-der die angenommenen Aufnahmen direkt aus dem Collector holt.
+der die angenommenen Aufnahmen direkt aus dem Collector holt. Läuft er als
+Dienst auf dem Trainingsrechner, startet und verfolgt man das Training aus
+Home Assistant, und das fertige Modell liefert Home Assistant direkt an die
+Satelliten aus. Mit `wake_word_report_triggers` melden die Satelliten jede
+Auslösung; Fehlalarme („Fehlalarm“ sagen oder in der Karte markieren) lernt
+das nächste Training zu ignorieren.
 
 Einrichtung wie oben: Integration hinzufügen (Aktivierungswort, Varianten,
 Befehlswörter wie „fertig, reicht“), das ESPHome-Paket in jeden Satelliten

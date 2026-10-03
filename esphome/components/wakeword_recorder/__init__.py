@@ -93,6 +93,8 @@ async def capture_action_to_code(config, action_id, template_arg, args):
         {
             cv.GenerateID(): cv.use_id(WakewordRecorder),
             cv.Required("transcript"): cv.templatable(cv.string_strict),
+            # "trigger": the audio before a wake word detection, for the collector to judge.
+            cv.Optional("kind"): cv.templatable(cv.one_of("utterance", "trigger", lower=True)),
         }
     ),
     synchronous=True,
@@ -103,6 +105,9 @@ async def finish_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_parent(recorder))
     template_ = await cg.templatable(config["transcript"], args, cg.std_string)
     cg.add(var.set_transcript(template_))
+    if "kind" in config:
+        kind = await cg.templatable(config["kind"], args, cg.std_string)
+        cg.add(var.set_kind(kind))
     return var
 
 

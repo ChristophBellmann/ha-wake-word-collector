@@ -37,17 +37,23 @@
         "data": {
           "variants": "Zählt ebenfalls als Aktivierungswort",
           "control_words": "Befehlswörter",
-          "storage": "Speicherordner"
+          "storage": "Speicherordner",
+          "trainer_url": "Wake-Word-Trainer-Dienst",
+          "trainer_token": "Trainer-Token"
         },
         "data_description": {
           "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
           "control_words": "Durch Kommas getrennt. Aufnahmen mit diesen Wörtern (z. B. „ich bin fertig“) werden als Befehle getrennt abgelegt.",
-          "storage": "Leer: der Ordner wake_word_collector/(Aktivierungswort) im Konfigurationsverzeichnis. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
+          "storage": "Leer: der Ordner wake_word_collector/(Aktivierungswort) im Konfigurationsverzeichnis. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten.",
+          "trainer_url": "Optional, z. B. http://192.168.1.20:10701 (wake-word-trainer serve auf dem Trainingsrechner). Leer: kein Training aus Home Assistant.",
+          "trainer_token": "Der Token aus der token_file des Dienstes."
         }
       }
     },
     "error": {
-      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten."
+      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten.",
+      "trainer_unreachable": "Der Trainer-Dienst antwortet unter dieser Adresse nicht.",
+      "trainer_auth": "Der Trainer-Dienst lehnt den Token ab."
     }
   },
   "entity": {
@@ -58,6 +64,41 @@
       },
       "satellite_command": {
         "name": "Satellite command"
+      },
+      "training": {
+        "name": "Training",
+        "state": {
+          "idle": "Bereit",
+          "starting": "Startet",
+          "running": "Läuft",
+          "completed": "Abgeschlossen",
+          "failed": "Fehlgeschlagen",
+          "stopped": "Gestoppt"
+        }
+      },
+      "training_progress": {
+        "name": "Trainingsfortschritt"
+      },
+      "model": {
+        "name": "Trainiertes Modell"
+      }
+    },
+    "binary_sensor": {
+      "trainer": {
+        "name": "Trainingsrechner"
+      }
+    },
+    "button": {
+      "start_training": {
+        "name": "Training starten"
+      },
+      "stop_training": {
+        "name": "Training stoppen"
+      }
+    },
+    "select": {
+      "training_profile": {
+        "name": "Trainingsprofil"
       }
     }
   },
@@ -121,6 +162,27 @@
     },
     "choose_entry": {
       "message": "Mehrere Aktivierungswörter sind eingerichtet: eines mit config_entry_id wählen."
+    },
+    "invalid_kind": {
+      "message": "Unbekannte Art von Aufnahme."
+    },
+    "no_trigger": {
+      "message": "In den letzten Minuten wurde keine Auslösung gemeldet."
+    },
+    "no_trainer": {
+      "message": "Für dieses Aktivierungswort ist kein Wake-Word-Trainer-Dienst eingerichtet."
+    },
+    "trainer_unreachable": {
+      "message": "Der Trainingsrechner antwortet nicht."
+    },
+    "trainer_auth": {
+      "message": "Der Trainer-Dienst lehnt den Token ab."
+    },
+    "trainer_refused": {
+      "message": "Der Trainer lehnt ab: {error}"
+    },
+    "trainer_no_model": {
+      "message": "Der Trainer hat kein exportiertes Modell."
     }
   },
   "services": {
@@ -174,7 +236,7 @@
         },
         "decision": {
           "name": "Entscheidung",
-          "description": "accept oder reject."
+          "description": "accept: fürs Training verwenden; reject: beiseitelegen (wiederherstellbar); negative: nicht das Aktivierungswort, das Modell lernt es zu ignorieren."
         },
         "note": {
           "name": "Notiz",
@@ -235,6 +297,62 @@
         "mode": {
           "name": "Modus",
           "description": "keep, remove oder extract."
+        }
+      }
+    },
+    "review_latest_trigger": {
+      "name": "Letzte Auslösung bewerten",
+      "description": "Die zuletzt von einem Satelliten gemeldete Auslösung als Aktivierungswort oder als Fehlalarm markieren.",
+      "fields": {
+        "decision": {
+          "name": "Entscheidung",
+          "description": "accept: es war das Aktivierungswort; negative: Fehlalarm."
+        },
+        "device": {
+          "name": "Satellit",
+          "description": "Nur Auslösungen dieses Satelliten (wake_word_device)."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
+        }
+      }
+    },
+    "start_training": {
+      "name": "Training starten",
+      "description": "Ein Training auf dem Wake-Word-Trainer-Dienst starten.",
+      "fields": {
+        "profile": {
+          "name": "Profil",
+          "description": "Profil des Trainer-Dienstes; leer: das ausgewählte."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
+        }
+      }
+    },
+    "stop_training": {
+      "name": "Training stoppen",
+      "description": "Das laufende Training beenden; fertige Runden bleiben.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
+        }
+      }
+    },
+    "speaker_test": {
+      "name": "Lautsprechertest",
+      "description": "Den Trainingsrechner eine zurückgehaltene Aufnahme über einen Lautsprecher abspielen lassen, um einen Satelliten live zu prüfen.",
+      "fields": {
+        "route": {
+          "name": "Lautsprecher",
+          "description": "Eine Route aus der speaker_test-Konfiguration des Trainer-Dienstes."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
         }
       }
     }

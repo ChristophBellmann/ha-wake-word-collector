@@ -39,8 +39,15 @@ NEEDS_REVIEW = "needs_review"
 CONTROL = "control"
 REJECTED_QUALITY = "rejected_quality"
 LEGACY_REVIEW = "rejected_transcript"
-CATEGORIES = (CANDIDATES, NEEDS_REVIEW, CONTROL, REJECTED_QUALITY, LEGACY_REVIEW)
-REVIEWABLE = (CANDIDATES, NEEDS_REVIEW, LEGACY_REVIEW)
+# Not the wake word: training material for what the model must ignore.
+NEGATIVES = "negatives"
+# What a satellite heard right before its wake word engine fired (to be judged).
+TRIGGERS = "triggers"
+CATEGORIES = (CANDIDATES, NEEDS_REVIEW, CONTROL, REJECTED_QUALITY, LEGACY_REVIEW, NEGATIVES, TRIGGERS)
+REVIEWABLE = (CANDIDATES, NEEDS_REVIEW, LEGACY_REVIEW, TRIGGERS, CONTROL, NEGATIVES)
+DECISIONS = {"accept": CANDIDATES, "reject": REJECTED_QUALITY, "negative": NEGATIVES}
+# A trigger report keeps only its end: the wake word (or what was taken for it).
+TRIGGER_SECONDS = 3.0
 
 MAX_BODY_BYTES = 4 * 1024 * 1024
 MIN_MS = 500
@@ -121,6 +128,15 @@ class Phrases:
                     if best[end] is None or count < best[end]:
                         best[end] = count
         return best[-1] or 0
+
+    def mentions(self, transcript: str) -> bool:
+        """Does the wake word occur anywhere in the transcript?"""
+        words = normalize(transcript).split()
+        for phrase in self.accepted:
+            for start in range(len(words) - len(phrase) + 1):
+                if all(word_matches(h, e) for h, e in zip(words[start : start + len(phrase)], phrase, strict=True)):
+                    return True
+        return False
 
     def classify(self, transcript: str) -> str:
         if self.repetitions(transcript):
@@ -258,7 +274,7 @@ class Store:
         self.phrases = phrases
 
     def ensure(self) -> None:
-        for category in (CANDIDATES, NEEDS_REVIEW, CONTROL, REJECTED_QUALITY):
+        for category in (CANDIDATES, NEEDS_REVIEW, CONTROL, REJECTED_QUALITY, NEGATIVES, TRIGGERS):
             (self.root / category).mkdir(parents=True, exist_ok=True)
 
     @property
@@ -324,8 +340,14 @@ class Store:
 
     # Upload -------------------------------------------------------------------
 
-    def add(self, device: str, transcript: str, body: bytes) -> list[dict]:
-        """Store an uploaded clip; returns one record per stored part."""
+    def add(self, device: str, transcript: str, body: bytes, kind: str = "utterance") -> list[dict]:
+        """Store an uploaded clip; returns one record per stored part.
+
+        kind "trigger": the seconds before the satellite's wake word engine fired.
+        It is kept as it is (also when quiet: a false activation by a quiet noise
+        is exactly what the model must learn) and waits for a decision."""
+        if kind not in ("utterance", "trigger"):
+            raise CollectorError("invalid_kind")
         device = device.lower()
         if not DEVICE_RE.fullmatch(device):
             raise CollectorError("invalid_device")
@@ -338,11 +360,19 @@ class Store:
             tmp.write(body)
             temp_path = Path(tmp.name)
         try:
+            if kind == "trigger":
+                params, frames = read_wav(temp_path)
+                keep = int(TRIGGER_SECONDS * params.framerate) * params.sampwidth * params.nchannels
+                if len(frames) > keep:
+                    write_wav(temp_path, params, frames[-keep:])
             meta = analyse(temp_path)
-            category = self.phrases.classify(transcript)
-            if meta["quality_reasons"]:
-                category = REJECTED_QUALITY
-            repetitions = self.phrases.repetitions(transcript)
+            if kind == "trigger":
+                category = TRIGGERS
+            else:
+                category = self.phrases.classify(transcript)
+                if meta["quality_reasons"]:
+                    category = REJECTED_QUALITY
+            repetitions = self.phrases.repetitions(transcript) if kind == "utterance" else 0
             parts = (
                 split_repetitions(temp_path, repetitions, incoming)
                 if category == CANDIDATES and repetitions > 1
@@ -353,7 +383,7 @@ class Store:
             records = []
             for index, part in enumerate(parts, start=1):
                 part_meta = analyse(part)
-                part_category = REJECTED_QUALITY if part_meta["quality_reasons"] else category
+                part_category = REJECTED_QUALITY if part_meta["quality_reasons"] and kind == "utterance" else category
                 filename, sha256 = self._stage(part, part_category, device, timestamp)
                 record = {
                     "created_at": timestamp.isoformat(),
@@ -366,6 +396,7 @@ class Store:
                     "split_index": index if len(parts) > 1 else None,
                     "split_count": len(parts),
                     "source_upload_sha256": upload_sha,
+                    "kind": kind,
                     "sha256": sha256,
                     **part_meta,
                 }
@@ -391,6 +422,8 @@ class Store:
             "needs_review": counts[NEEDS_REVIEW] + counts[LEGACY_REVIEW],
             "control": counts[CONTROL],
             "rejected_quality": counts[REJECTED_QUALITY],
+            "negatives": counts[NEGATIVES],
+            "triggers": counts[TRIGGERS],
             "total": sum(counts.values()),
             "candidates_by_device": by_device,
             "latest_recording_at": datetime.fromtimestamp(latest, UTC).isoformat() if latest else None,
@@ -427,13 +460,14 @@ class Store:
     # Review -------------------------------------------------------------------
 
     def review(self, category: str, device: str, filename: str, decision: str, note: str = "") -> dict:
-        """accept: move to candidates; reject: move to rejected_quality (recoverable)."""
-        if decision not in ("accept", "reject"):
+        """accept: move to candidates; reject: move to rejected_quality (recoverable);
+        negative: not the wake word, move to negatives (trains what to ignore)."""
+        if decision not in DECISIONS:
             raise CollectorError("invalid_decision")
-        if decision == "accept" and category == CANDIDATES:
-            raise CollectorError("already_accepted")
+        target_category = DECISIONS[decision]
+        if category == target_category:
+            raise CollectorError("already_accepted" if decision == "accept" else "already_reviewed")
         source = self._path(category, device, filename)
-        target_category = CANDIDATES if decision == "accept" else REJECTED_QUALITY
         target_dir = self.root / target_category / device
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / filename
@@ -483,6 +517,29 @@ class Store:
         }
         self._append("reviews.jsonl", record)
         return record
+
+    def review_latest_trigger(self, decision: str, device: str | None = None, max_age_s: float = 300) -> dict:
+        """Judge the newest reported activation ("that was a false alarm")."""
+        if decision not in ("accept", "negative"):
+            raise CollectorError("invalid_decision")
+        if device is not None:
+            device = device.lower()
+            if not DEVICE_RE.fullmatch(device):
+                raise CollectorError("invalid_device")
+        files = sorted(
+            (self.root / TRIGGERS).glob(f"{device}/*.wav" if device else "*/*.wav"), key=lambda p: p.stat().st_mtime
+        )
+        if not files or utc_now().timestamp() - files[-1].stat().st_mtime > max_age_s:
+            raise CollectorError("no_trigger")
+        latest = files[-1]
+        return self.review(TRIGGERS, latest.parent.name, latest.name, decision)
+
+    def negatives(self) -> list[dict]:
+        """Clips without the wake word for training: marked negatives plus command
+        recordings whose transcript does not contain the wake word."""
+        items = self.list((NEGATIVES,))
+        items += [item for item in self.list((CONTROL,)) if not self.phrases.mentions(item["transcript"])]
+        return items
 
     # Editing ------------------------------------------------------------------
 

@@ -37,17 +37,23 @@
         "data": {
           "variants": "Also counts as the wake word",
           "control_words": "Command words",
-          "storage": "Storage folder"
+          "storage": "Storage folder",
+          "trainer_url": "Wake Word Trainer service",
+          "trainer_token": "Trainer token"
         },
         "data_description": {
           "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
           "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
-          "storage": "Empty: the folder wake_word_collector/(wake word) in the configuration directory. Recordings are voice data: keep the folder out of public backups."
+          "storage": "Empty: the folder wake_word_collector/(wake word) in the configuration directory. Recordings are voice data: keep the folder out of public backups.",
+          "trainer_url": "Optional, e.g. http://192.168.1.20:10701 (wake-word-trainer serve on the training computer). Empty: no training from Home Assistant.",
+          "trainer_token": "The token in the service's token_file."
         }
       }
     },
     "error": {
-      "phrase_empty": "The wake word must contain at least one letter or digit."
+      "phrase_empty": "The wake word must contain at least one letter or digit.",
+      "trainer_unreachable": "The trainer service does not answer at this address.",
+      "trainer_auth": "The trainer service refused the token."
     }
   },
   "entity": {
@@ -58,6 +64,41 @@
       },
       "satellite_command": {
         "name": "Satellite command"
+      },
+      "training": {
+        "name": "Training",
+        "state": {
+          "idle": "Idle",
+          "starting": "Starting",
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "stopped": "Stopped"
+        }
+      },
+      "training_progress": {
+        "name": "Training progress"
+      },
+      "model": {
+        "name": "Trained model"
+      }
+    },
+    "binary_sensor": {
+      "trainer": {
+        "name": "Training computer"
+      }
+    },
+    "button": {
+      "start_training": {
+        "name": "Start training"
+      },
+      "stop_training": {
+        "name": "Stop training"
+      }
+    },
+    "select": {
+      "training_profile": {
+        "name": "Training profile"
       }
     }
   },
@@ -121,6 +162,27 @@
     },
     "choose_entry": {
       "message": "Several wake words are set up: choose one with config_entry_id."
+    },
+    "invalid_kind": {
+      "message": "Unknown kind of recording."
+    },
+    "no_trigger": {
+      "message": "No activation reported in the last few minutes."
+    },
+    "no_trainer": {
+      "message": "No Wake Word Trainer service is configured for this wake word."
+    },
+    "trainer_unreachable": {
+      "message": "The training computer does not answer."
+    },
+    "trainer_auth": {
+      "message": "The trainer service refused the token."
+    },
+    "trainer_refused": {
+      "message": "The trainer refused: {error}"
+    },
+    "trainer_no_model": {
+      "message": "The trainer has no exported model."
     }
   },
   "services": {
@@ -174,7 +236,7 @@
         },
         "decision": {
           "name": "Decision",
-          "description": "accept or reject."
+          "description": "accept: usable for training; reject: set aside (recoverable); negative: not the wake word, the model learns to ignore it."
         },
         "note": {
           "name": "Note",
@@ -235,6 +297,62 @@
         "mode": {
           "name": "Mode",
           "description": "keep, remove or extract."
+        }
+      }
+    },
+    "review_latest_trigger": {
+      "name": "Judge the last activation",
+      "description": "Mark the newest activation reported by a satellite as the wake word or as a false alarm.",
+      "fields": {
+        "decision": {
+          "name": "Decision",
+          "description": "accept: it was the wake word; negative: false alarm."
+        },
+        "device": {
+          "name": "Satellite",
+          "description": "Only this satellite's activations (wake_word_device)."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
+        }
+      }
+    },
+    "start_training": {
+      "name": "Start training",
+      "description": "Start a training on the Wake Word Trainer service.",
+      "fields": {
+        "profile": {
+          "name": "Profile",
+          "description": "Profile of the trainer service; empty: the selected one."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
+        }
+      }
+    },
+    "stop_training": {
+      "name": "Stop training",
+      "description": "Stop the running training; finished rounds stay.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
+        }
+      }
+    },
+    "speaker_test": {
+      "name": "Loudspeaker test",
+      "description": "Let the training computer play one held-out recording through a loudspeaker, to test a satellite live.",
+      "fields": {
+        "route": {
+          "name": "Loudspeaker",
+          "description": "A route of the trainer service's speaker_test configuration."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
         }
       }
     }

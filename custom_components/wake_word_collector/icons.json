@@ -1,15 +1,68 @@
 {
   "entity": {
     "sensor": {
-      "recordings": { "default": "mdi:waveform" },
-      "satellite_command": { "default": "mdi:microphone-message" }
+      "recordings": {
+        "default": "mdi:waveform"
+      },
+      "satellite_command": {
+        "default": "mdi:microphone-message"
+      },
+      "training": {
+        "default": "mdi:brain"
+      },
+      "training_progress": {
+        "default": "mdi:progress-clock"
+      },
+      "model": {
+        "default": "mdi:package-variant-closed-check"
+      }
+    },
+    "binary_sensor": {
+      "trainer": {
+        "default": "mdi:desktop-tower"
+      }
+    },
+    "button": {
+      "start_training": {
+        "default": "mdi:play-circle"
+      },
+      "stop_training": {
+        "default": "mdi:stop-circle"
+      }
+    },
+    "select": {
+      "training_profile": {
+        "default": "mdi:tune-variant"
+      }
     }
   },
   "services": {
-    "start": { "service": "mdi:microphone-plus" },
-    "stop": { "service": "mdi:microphone-off" },
-    "review": { "service": "mdi:check-decagram" },
-    "review_latest": { "service": "mdi:message-reply-text" },
-    "trim": { "service": "mdi:content-cut" }
+    "start": {
+      "service": "mdi:microphone-plus"
+    },
+    "stop": {
+      "service": "mdi:microphone-off"
+    },
+    "review": {
+      "service": "mdi:check-decagram"
+    },
+    "review_latest": {
+      "service": "mdi:message-reply-text"
+    },
+    "trim": {
+      "service": "mdi:content-cut"
+    },
+    "review_latest_trigger": {
+      "service": "mdi:alarm-light-off"
+    },
+    "start_training": {
+      "service": "mdi:play-circle"
+    },
+    "stop_training": {
+      "service": "mdi:stop-circle"
+    },
+    "speaker_test": {
+      "service": "mdi:speaker-play"
+    }
   }
 }

@@ -8,6 +8,8 @@ CONF_CONTROL = "control_words"
 CONF_STORAGE = "storage"
 CONF_TOKEN = "token"
 CONF_SLUG = "slug"
+CONF_TRAINER_URL = "trainer_url"
+CONF_TRAINER_TOKEN = "trainer_token"
 
 CONTROL_DEFAULTS = {
     "en": "stop, finished, done, enough, start, recording",
@@ -17,6 +19,9 @@ CONTROL_DEFAULTS = {
 UPLOAD_URL = "/api/wake_word_collector/clips/{slug}"
 AUDIO_URL = "/api/wake_word_collector/audio/{entry_id}/{category}/{device}/{filename}"
 EXPORT_URL = "/api/wake_word_collector/export/{slug}/{device}/{filename}"
+NEGATIVES_URL = "/api/wake_word_collector/export/{slug}/negatives"
+NEGATIVE_AUDIO_URL = "/api/wake_word_collector/export/{slug}/negatives/{category}/{device}/{filename}"
+MODEL_URL = "/api/wake_word_collector/model/{slug}/{filename}"
 CARD_URL = "/wake_word_collector/wake-word-collector-card.js"
 
 SIGNAL_UPDATE = f"{DOMAIN}_update_{{}}"

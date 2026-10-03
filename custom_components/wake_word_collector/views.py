@@ -4,7 +4,10 @@
   ``X-Wakeword-Device``, speech-to-text result in ``X-Wakeword-Transcript``,
   body a mono PCM16 WAV. No Home Assistant login: ESPHome devices have none.
 * Audio (position card, logged-in users or signed paths).
-* Export (training pipelines): the upload token, candidates only.
+* Export (training pipelines): the upload token; accepted clips, and clips
+  that are not the wake word (negatives).
+* Model (satellites, ESPHome at compile time): the trained model, no login;
+  it contains no audio.
 """
 
 from __future__ import annotations
@@ -17,8 +20,8 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.exceptions import HomeAssistantError
 
-from .collect import CANDIDATES, MAX_BODY_BYTES, CollectorError
-from .const import AUDIO_URL, DOMAIN, EXPORT_URL, UPLOAD_URL
+from .collect import CANDIDATES, CONTROL, MAX_BODY_BYTES, NEGATIVES, CollectorError
+from .const import AUDIO_URL, DOMAIN, EXPORT_URL, MODEL_URL, NEGATIVE_AUDIO_URL, NEGATIVES_URL, UPLOAD_URL
 
 if TYPE_CHECKING:
     from .collector import Collector
@@ -65,8 +68,9 @@ class UploadView(HomeAssistantView):
             return self.json_message("too large", 413)
         device = request.headers.get("X-Wakeword-Device", "")
         transcript = _header_text(request.headers.get("X-Wakeword-Transcript", "")).strip()
+        kind = request.headers.get("X-Wakeword-Kind", "utterance").strip().lower() or "utterance"
         try:
-            records = await collector.async_add(device, transcript, body)
+            records = await collector.async_add(device, transcript, body, kind)
         except HomeAssistantError as err:
             cause = err.__cause__
             code = cause.code if isinstance(cause, CollectorError) else "error"
@@ -124,4 +128,67 @@ class ExportAudioView(HomeAssistantView):
         return web.FileResponse(path, headers={"Content-Type": "audio/wav"})
 
 
-VIEWS = (UploadView, AudioView, ExportListView, ExportAudioView)
+class ExportNegativesView(HomeAssistantView):
+    url = NEGATIVES_URL
+    name = "api:wake_word_collector:export_negatives"
+    requires_auth = False
+
+    async def get(self, request: web.Request, slug: str) -> web.Response:
+        collector = _by_slug(request, slug)
+        if collector is None or not _authorized(request, collector):
+            return self.json_message("authentication failed", 401)
+        items = await collector.async_negatives()
+        for item in items:
+            item["audio_url"] = NEGATIVE_AUDIO_URL.format(
+                slug=slug, category=item["category"], device=item["device"], filename=item["filename"]
+            )
+        return self.json({"phrase": collector.entry.title, "negatives": items})
+
+
+class ExportNegativeAudioView(HomeAssistantView):
+    url = NEGATIVE_AUDIO_URL
+    name = "api:wake_word_collector:export_negative_audio"
+    requires_auth = False
+
+    async def get(
+        self, request: web.Request, slug: str, category: str, device: str, filename: str
+    ) -> web.StreamResponse:
+        collector = _by_slug(request, slug)
+        if collector is None or not _authorized(request, collector):
+            return self.json_message("authentication failed", 401)
+        if category not in (NEGATIVES, CONTROL):
+            raise web.HTTPNotFound
+        try:
+            path = collector.store.audio(category, device, filename)
+        except CollectorError as err:
+            raise web.HTTPNotFound from err
+        return web.FileResponse(path, headers={"Content-Type": "audio/wav"})
+
+
+class ModelView(HomeAssistantView):
+    """The trained model for micro_wake_word: <slug>.json and <slug>.tflite."""
+
+    url = MODEL_URL
+    name = "api:wake_word_collector:model"
+    requires_auth = False
+
+    async def get(self, request: web.Request, slug: str, filename: str) -> web.StreamResponse:
+        collector = _by_slug(request, slug)
+        if collector is None or filename not in (f"{slug}.json", f"{slug}.tflite"):
+            raise web.HTTPNotFound
+        path = collector.model_dir / filename
+        if not path.is_file():
+            raise web.HTTPNotFound
+        kind = "application/json" if filename.endswith(".json") else "application/octet-stream"
+        return web.FileResponse(path, headers={"Content-Type": kind, "Cache-Control": "no-cache"})
+
+
+VIEWS = (
+    UploadView,
+    AudioView,
+    ExportListView,
+    ExportAudioView,
+    ExportNegativesView,
+    ExportNegativeAudioView,
+    ModelView,
+)

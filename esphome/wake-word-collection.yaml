@@ -24,6 +24,13 @@
 # is recorded from the satellite's own microphone (up to wake_word_max_duration,
 # including the moment before listening started) and uploaded with its
 # transcript to Home Assistant, which sorts it. Responses are not played back.
+#
+# Optional (wake_word_report_triggers: "true"): outside collection mode, the
+# satellite also reports every wake word activation: the seconds before the
+# detection go to Home Assistant as "trigger", where you mark them as the wake
+# word or as a false alarm (card, or say "false alarm"). False alarms become
+# training data the model learns to ignore. The audio is uploaded after the
+# voice assistant finished, so answering is never delayed.
 
 defaults:
   wake_word_device: voice-satellite
@@ -34,6 +41,7 @@ defaults:
   wake_word_va_id: va
   wake_word_media_player_id: external_media_player
   wake_word_max_duration: 8s
+  wake_word_report_triggers: "false"
   # ESPHome finds the component in esphome/components of the repository.
   wake_word_components: github://ChristophBellmann/ha-wake-word-collector@main
 
@@ -50,6 +58,12 @@ globals:
     type: bool
     restore_value: no
     initial_value: "false"
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: wake_word_trigger_listen
 
 external_components:
   - source: ${wake_word_components}
@@ -106,6 +120,21 @@ text_sensor:
           }
 
 script:
+  # Keep a ring buffer of the last seconds while not collecting, for trigger reports.
+  - id: wake_word_trigger_listen
+    then:
+      - if:
+          condition:
+            lambda: return ${wake_word_report_triggers} && !id(wake_word_collection_active);
+          then:
+            - wakeword_recorder.capture: wake_word_recorder
+  # Upload a finished trigger report later if no voice assistant run does it.
+  - id: wake_word_trigger_upload_later
+    mode: restart
+    then:
+      - delay: 20s
+      - wakeword_recorder.upload: wake_word_recorder
+      - script.execute: wake_word_trigger_listen
   - id: wake_word_collection_start_now
     then:
       - micro_wake_word.stop:
@@ -143,6 +172,21 @@ button:
           id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
       - wakeword_recorder.discard: wake_word_recorder
       - script.execute: wake_word_collection_stop_now
+      - script.execute: wake_word_trigger_listen
+
+micro_wake_word:
+  on_wake_word_detected:
+    - if:
+        condition:
+          lambda: return ${wake_word_report_triggers} && !id(wake_word_collection_active);
+        then:
+          # Let the end of the wake word reach the buffer, then freeze it.
+          - delay: 300ms
+          - wakeword_recorder.finish:
+              id: wake_word_recorder
+              transcript: ""
+              kind: trigger
+          - script.execute: wake_word_trigger_upload_later
 
 voice_assistant:
   id: ${wake_word_va_id}
@@ -192,6 +236,8 @@ voice_assistant:
           lambda: return !id(wake_word_collection_active);
         then:
           - wakeword_recorder.upload: wake_word_recorder
+          - script.stop: wake_word_trigger_upload_later
+          - script.execute: wake_word_trigger_listen
           - lambda: id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
           - if:
               condition:

@@ -54,7 +54,9 @@ class WakewordRecorder : public Component {
   void reset_speech();
 
   bool start_capture();
-  bool finish_capture(const std::string &transcript);
+  /// kind: empty or "utterance" for a spoken example, "trigger" for the audio
+  /// right before the wake word engine fired (sent as X-Wakeword-Kind).
+  bool finish_capture(const std::string &transcript, const std::string &kind = "");
   bool upload_capture();
   void discard_capture();
   bool is_busy();
@@ -62,7 +64,7 @@ class WakewordRecorder : public Component {
  protected:
   void receive_audio_(const std::vector<uint8_t> &data);
   void track_level_(const std::vector<uint8_t> &data);
-  void upload_(const std::string &transcript);
+  void upload_(const std::string &transcript, const std::string &kind);
 
   microphone::MicrophoneSource *microphone_source_{nullptr};
   microphone::MicrophoneSource *hold_source_{nullptr};
@@ -90,6 +92,7 @@ class WakewordRecorder : public Component {
   uint32_t last_speech_ms_{0};
   uint32_t capture_started_ms_{0};
   std::string transcript_;
+  std::string kind_;
   std::vector<uint8_t, RAMAllocator<uint8_t>> pcm_{RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_EXTERNAL)};
 };
 
@@ -124,7 +127,11 @@ template<typename... Ts> class FinishAction : public Action<Ts...> {
  public:
   void set_parent(WakewordRecorder *parent) { this->parent_ = parent; }
   TEMPLATABLE_VALUE(std::string, transcript)
-  void play(const Ts &...x) override { this->parent_->finish_capture(this->transcript_.value(x...)); }
+  TEMPLATABLE_VALUE(std::string, kind)
+  void play(const Ts &...x) override {
+    this->parent_->finish_capture(this->transcript_.value(x...),
+                                  this->kind_.has_value() ? this->kind_.value(x...) : std::string());
+  }
 
  protected:
   WakewordRecorder *parent_{nullptr};

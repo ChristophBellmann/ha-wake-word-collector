@@ -19,6 +19,8 @@ from .const import (
     CONF_SLUG,
     CONF_STORAGE,
     CONF_TOKEN,
+    CONF_TRAINER_TOKEN,
+    CONF_TRAINER_URL,
     CONF_VARIANTS,
     CONTROL_DEFAULTS,
     DOMAIN,
@@ -26,16 +28,34 @@ from .const import (
 )
 
 TEXT = sel.TextSelector()
+URL = sel.TextSelector(sel.TextSelectorConfig(type=sel.TextSelectorType.URL))
+PASSWORD = sel.TextSelector(sel.TextSelectorConfig(type=sel.TextSelectorType.PASSWORD))
 
 
-def _schema(values: dict[str, Any], with_phrase: bool) -> vol.Schema:
+def _schema(values: dict[str, Any], with_phrase: bool, trainer: bool = False) -> vol.Schema:
     schema: dict = {}
     if with_phrase:
         schema[vol.Required(CONF_PHRASE, default=values.get(CONF_PHRASE, vol.UNDEFINED))] = TEXT
     schema[vol.Optional(CONF_VARIANTS, description={"suggested_value": values.get(CONF_VARIANTS, "")})] = TEXT
     schema[vol.Optional(CONF_CONTROL, description={"suggested_value": values.get(CONF_CONTROL, "")})] = TEXT
     schema[vol.Optional(CONF_STORAGE, description={"suggested_value": values.get(CONF_STORAGE, "")})] = TEXT
+    if trainer:
+        schema[vol.Optional(CONF_TRAINER_URL, description={"suggested_value": values.get(CONF_TRAINER_URL, "")})] = URL
+        schema[
+            vol.Optional(CONF_TRAINER_TOKEN, description={"suggested_value": values.get(CONF_TRAINER_TOKEN, "")})
+        ] = PASSWORD
     return vol.Schema(schema)
+
+
+async def _check_trainer(hass, url: str, token: str) -> dict[str, str]:
+    from .trainer import TrainerClient, TrainerError
+
+    try:
+        await TrainerClient(hass, url, token).status()
+    except TrainerError as err:
+        key = "trainer_auth" if err.translation_key == "trainer_auth" else "trainer_unreachable"
+        return {CONF_TRAINER_URL: key}
+    return {}
 
 
 def _valid(values: dict[str, Any]) -> dict[str, str]:
@@ -109,12 +129,16 @@ class WakeWordCollectorOptionsFlow(OptionsFlow):
         if user_input is not None:
             options = {**entry.options, **user_input, CONF_PHRASE: entry.options[CONF_PHRASE]}
             options[CONF_STORAGE] = user_input.get(CONF_STORAGE) or entry.options[CONF_STORAGE]
+            options[CONF_TRAINER_URL] = (user_input.get(CONF_TRAINER_URL) or "").strip().rstrip("/")
+            options[CONF_TRAINER_TOKEN] = (user_input.get(CONF_TRAINER_TOKEN) or "").strip()
             errors = _valid(options)
+            if not errors and options[CONF_TRAINER_URL]:
+                errors = await _check_trainer(self.hass, options[CONF_TRAINER_URL], options[CONF_TRAINER_TOKEN])
             if not errors:
                 return self.async_create_entry(data=options)
         return self.async_show_form(
             step_id="init",
-            data_schema=_schema({**entry.options, **(user_input or {})}, False),
+            data_schema=_schema({**entry.options, **(user_input or {})}, False, trainer=True),
             errors=errors,
             description_placeholders={
                 "url": upload_url(self.hass, entry.data[CONF_SLUG]),

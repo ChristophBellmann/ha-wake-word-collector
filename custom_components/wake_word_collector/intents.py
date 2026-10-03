@@ -14,6 +14,7 @@ START = "WakeWordCollectionStart"
 STOP = "WakeWordCollectionStop"
 STATS = "WakeWordCollectionStats"
 REVIEW = "WakeWordCollectionReview"
+FALSE_ALARM = "WakeWordFalseAlarm"
 
 SPEECH = {
     "en": {
@@ -23,6 +24,8 @@ SPEECH = {
         REVIEW: "Noted.",
         "rejected": "The last recording will not be used.",
         "none": "The wake word collector is not set up.",
+        FALSE_ALARM: "Sorry. I noted it so I learn to ignore it.",
+        "no_trigger": "I have no recording of that activation.",
     },
     "de": {
         START: "Aufnahme läuft. Sag jetzt nur das Aktivierungswort, so oft du möchtest. "
@@ -32,6 +35,8 @@ SPEECH = {
         REVIEW: "Notiert.",
         "rejected": "Die letzte Aufnahme wird nicht verwendet.",
         "none": "Der Wake Word Collector ist nicht eingerichtet.",
+        FALSE_ALARM: "Entschuldigung. Ich habe es mir gemerkt, damit ich darauf nicht mehr reagiere.",
+        "no_trigger": "Von dieser Auslösung habe ich keine Aufnahme.",
     },
 }
 
@@ -119,7 +124,23 @@ class ReviewHandler(_Handler):
         return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, "rejected" if reject else REVIEW))
 
 
-HANDLERS = (StartHandler, StopHandler, StatsHandler, ReviewHandler)
+class FalseAlarmHandler(_Handler):
+    intent_type = FALSE_ALARM
+    description = (
+        "The user says the voice assistant woke up although nobody called it (a false alarm), "
+        "e.g. 'I did not call you'. Marks the last activation as not the wake word. No parameters."
+    )
+
+    async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
+        collector = _collector(intent_obj.hass, intent_obj)
+        try:
+            await collector.async_review_latest_trigger("negative")
+        except HomeAssistantError:
+            return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, "no_trigger"))
+        return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, FALSE_ALARM))
+
+
+HANDLERS = (StartHandler, StopHandler, StatsHandler, ReviewHandler, FalseAlarmHandler)
 
 
 def async_register(hass: HomeAssistant) -> None:
