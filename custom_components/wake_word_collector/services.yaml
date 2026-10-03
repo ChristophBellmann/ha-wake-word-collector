@@ -1,0 +1,80 @@
+start:
+  fields:
+    config_entry_id: &entry
+      selector:
+        config_entry:
+          integration: wake_word_collector
+    device: &device
+      example: kitchen-satellite
+      selector:
+        text:
+stop:
+  fields:
+    config_entry_id: *entry
+    device: *device
+review:
+  fields:
+    config_entry_id: *entry
+    category: &category
+      required: true
+      selector:
+        select:
+          options: [candidates, needs_review, rejected_transcript]
+    device: &clip_device
+      required: true
+      selector:
+        text:
+    filename: &filename
+      required: true
+      selector:
+        text:
+    decision:
+      required: true
+      selector:
+        select:
+          options: [accept, reject]
+    note:
+      selector:
+        text:
+review_latest:
+  fields:
+    config_entry_id: *entry
+    note:
+      required: true
+      selector:
+        text:
+    decision:
+      default: note
+      selector:
+        select:
+          options: [note, reject]
+    device:
+      selector:
+        text:
+trim:
+  fields:
+    config_entry_id: *entry
+    category: *category
+    device: *clip_device
+    filename: *filename
+    start_ms:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 60000
+          unit_of_measurement: ms
+          mode: box
+    end_ms:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 60000
+          unit_of_measurement: ms
+          mode: box
+    mode:
+      default: keep
+      selector:
+        select:
+          options: [keep, remove, extract]

@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "sensor": {
+      "recordings": { "default": "mdi:waveform" },
+      "satellite_command": { "default": "mdi:microphone-message" }
+    }
+  },
+  "services": {
+    "start": { "service": "mdi:microphone-plus" },
+    "stop": { "service": "mdi:microphone-off" },
+    "review": { "service": "mdi:check-decagram" },
+    "review_latest": { "service": "mdi:message-reply-text" },
+    "trim": { "service": "mdi:content-cut" }
+  }
+}

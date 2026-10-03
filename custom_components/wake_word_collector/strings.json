@@ -1,0 +1,242 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wake Word Collector",
+        "description": "Record examples of your wake word with your own voice satellites.",
+        "data": {
+          "phrase": "Wake word",
+          "variants": "Also counts as the wake word",
+          "control_words": "Command words",
+          "storage": "Storage folder"
+        },
+        "data_description": {
+          "phrase": "As your speech-to-text writes it, e.g. Hey Jarvis.",
+          "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
+          "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
+          "storage": "Empty: <config>/wake_word_collector/<wake word>. Recordings are voice data: keep the folder out of public backups."
+        }
+      },
+      "device_settings": {
+        "title": "Satellite settings",
+        "description": "Put these into the ESPHome configuration of every satellite (see README):\n\nUpload URL: `{url}`\nToken: `{token}`\nCommand sensor: `sensor.{slug}_satellite_command`\n\nKeep the token secret, e.g. in `secrets.yaml`. It is shown again in the options of this entry."
+      }
+    },
+    "error": {
+      "phrase_empty": "The wake word must contain at least one letter or digit."
+    },
+    "abort": {
+      "already_configured": "This wake word is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "description": "Put these into the ESPHome configuration of every satellite (see README):\n\nUpload URL: `{url}`\nToken: `{token}`\nCommand sensor: `sensor.{slug}_satellite_command`\n\nKeep the token secret, e.g. in `secrets.yaml`. It is shown again in the options of this entry.",
+        "data": {
+          "variants": "Also counts as the wake word",
+          "control_words": "Command words",
+          "storage": "Storage folder"
+        },
+        "data_description": {
+          "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
+          "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
+          "storage": "Empty: <config>/wake_word_collector/<wake word>. Recordings are voice data: keep the folder out of public backups."
+        }
+      }
+    },
+    "error": {
+      "phrase_empty": "The wake word must contain at least one letter or digit."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "recordings": {
+        "name": "Recordings",
+        "unit_of_measurement": "recordings"
+      },
+      "satellite_command": {
+        "name": "Satellite command"
+      }
+    }
+  },
+  "exceptions": {
+    "phrase_empty": {
+      "message": "The wake word must contain at least one letter or digit."
+    },
+    "not_wav": {
+      "message": "Not a WAV file."
+    },
+    "not_mono_pcm16": {
+      "message": "Only mono 16-bit PCM WAV is accepted."
+    },
+    "sample_rate": {
+      "message": "The sample rate must be 16000 or 48000 Hz."
+    },
+    "duration": {
+      "message": "A clip must be between {min} and {max} milliseconds long."
+    },
+    "split_too_short": {
+      "message": "The recording is too short to split safely."
+    },
+    "split_no_boundary": {
+      "message": "No safe boundary between the wake words was found."
+    },
+    "trim_range": {
+      "message": "The end must lie after the start."
+    },
+    "invalid_clip": {
+      "message": "Invalid device or file name."
+    },
+    "invalid_category": {
+      "message": "Invalid category."
+    },
+    "clip_not_found": {
+      "message": "Recording not found."
+    },
+    "invalid_device": {
+      "message": "Invalid device name: lower case letters, digits, - and _ only."
+    },
+    "invalid_size": {
+      "message": "Invalid upload size."
+    },
+    "invalid_decision": {
+      "message": "Invalid decision."
+    },
+    "already_accepted": {
+      "message": "The recording is already accepted."
+    },
+    "already_reviewed": {
+      "message": "The recording was already reviewed."
+    },
+    "no_candidate": {
+      "message": "There is no recording to review yet."
+    },
+    "invalid_mode": {
+      "message": "The mode must be keep, remove or extract."
+    },
+    "unknown_entry": {
+      "message": "Unknown wake word entry."
+    },
+    "choose_entry": {
+      "message": "Several wake words are set up: choose one with config_entry_id."
+    }
+  },
+  "services": {
+    "start": {
+      "name": "Start recording",
+      "description": "Puts a satellite into collection mode: every following utterance is recorded until stop.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "device": {
+          "name": "Device",
+          "description": "The device name of the satellite (substitution wake_word_device). Empty: the satellite that is running the current voice command."
+        }
+      }
+    },
+    "stop": {
+      "name": "Stop recording",
+      "description": "Ends collection mode.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "device": {
+          "name": "Device",
+          "description": "The device name of the satellite (substitution wake_word_device). Empty: the satellite that is running the current voice command."
+        }
+      }
+    },
+    "review": {
+      "name": "Review recording",
+      "description": "Accept a recording for training or reject it (recoverable).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "category": {
+          "name": "Category",
+          "description": "candidates, needs_review or rejected_transcript."
+        },
+        "device": {
+          "name": "Device",
+          "description": "Device name of the recording."
+        },
+        "filename": {
+          "name": "File name",
+          "description": "File name of the recording."
+        },
+        "decision": {
+          "name": "Decision",
+          "description": "accept or reject."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Optional reason."
+        }
+      }
+    },
+    "review_latest": {
+      "name": "Review last recording",
+      "description": "Adds a note to the newest usable recording or rejects it.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "note": {
+          "name": "Note",
+          "description": "What the user said about it."
+        },
+        "decision": {
+          "name": "Decision",
+          "description": "note or reject."
+        },
+        "device": {
+          "name": "Device",
+          "description": "Only recordings of this device."
+        }
+      }
+    },
+    "trim": {
+      "name": "Trim recording",
+      "description": "keep: keep the window; remove: cut it out; extract: save it as a new recording and cut it out. The original is kept as backup.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "category": {
+          "name": "Category",
+          "description": "candidates, needs_review or rejected_transcript."
+        },
+        "device": {
+          "name": "Device",
+          "description": "Device name of the recording."
+        },
+        "filename": {
+          "name": "File name",
+          "description": "File name of the recording."
+        },
+        "start_ms": {
+          "name": "Start",
+          "description": "Milliseconds."
+        },
+        "end_ms": {
+          "name": "End",
+          "description": "Milliseconds."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "keep, remove or extract."
+        }
+      }
+    }
+  }
+}

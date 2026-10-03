@@ -1,0 +1,242 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wake Word Collector",
+        "description": "Beispiele deines Aktivierungsworts mit den eigenen Sprachsatelliten aufnehmen.",
+        "data": {
+          "phrase": "Aktivierungswort",
+          "variants": "Zählt ebenfalls als Aktivierungswort",
+          "control_words": "Befehlswörter",
+          "storage": "Speicherordner"
+        },
+        "data_description": {
+          "phrase": "So, wie deine Spracherkennung es schreibt, z. B. Hey Jarvis.",
+          "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
+          "control_words": "Durch Kommas getrennt. Aufnahmen mit diesen Wörtern (z. B. „ich bin fertig“) werden als Befehle getrennt abgelegt.",
+          "storage": "Leer: <config>/wake_word_collector/<Aktivierungswort>. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
+        }
+      },
+      "device_settings": {
+        "title": "Einstellungen für die Satelliten",
+        "description": "Diese Werte kommen in die ESPHome-Konfiguration jedes Satelliten (siehe README):\n\nUpload-URL: `{url}`\nToken: `{token}`\nBefehlssensor: `sensor.{slug}_satellite_command`\n\nDas Token geheim halten, z. B. in `secrets.yaml`. Es steht auch später in den Optionen dieses Eintrags."
+      }
+    },
+    "error": {
+      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten."
+    },
+    "abort": {
+      "already_configured": "Dieses Aktivierungswort ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen",
+        "description": "Diese Werte kommen in die ESPHome-Konfiguration jedes Satelliten (siehe README):\n\nUpload-URL: `{url}`\nToken: `{token}`\nBefehlssensor: `sensor.{slug}_satellite_command`\n\nDas Token geheim halten, z. B. in `secrets.yaml`. Es steht auch später in den Optionen dieses Eintrags.",
+        "data": {
+          "variants": "Zählt ebenfalls als Aktivierungswort",
+          "control_words": "Befehlswörter",
+          "storage": "Speicherordner"
+        },
+        "data_description": {
+          "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
+          "control_words": "Durch Kommas getrennt. Aufnahmen mit diesen Wörtern (z. B. „ich bin fertig“) werden als Befehle getrennt abgelegt.",
+          "storage": "Leer: <config>/wake_word_collector/<Aktivierungswort>. Aufnahmen sind Stimmdaten: den Ordner aus öffentlichen Sicherungen heraushalten."
+        }
+      }
+    },
+    "error": {
+      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "recordings": {
+        "name": "Aufnahmen",
+        "unit_of_measurement": "Aufnahmen"
+      },
+      "satellite_command": {
+        "name": "Satellite command"
+      }
+    }
+  },
+  "exceptions": {
+    "phrase_empty": {
+      "message": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten."
+    },
+    "not_wav": {
+      "message": "Keine WAV-Datei."
+    },
+    "not_mono_pcm16": {
+      "message": "Nur Mono-WAV mit 16 Bit PCM wird angenommen."
+    },
+    "sample_rate": {
+      "message": "Die Abtastrate muss 16000 oder 48000 Hz sein."
+    },
+    "duration": {
+      "message": "Eine Aufnahme muss zwischen {min} und {max} Millisekunden lang sein."
+    },
+    "split_too_short": {
+      "message": "Die Aufnahme ist zu kurz zum sicheren Trennen."
+    },
+    "split_no_boundary": {
+      "message": "Keine sichere Grenze zwischen den Aktivierungswörtern gefunden."
+    },
+    "trim_range": {
+      "message": "Das Ende muss nach dem Anfang liegen."
+    },
+    "invalid_clip": {
+      "message": "Ungültiges Gerät oder ungültiger Dateiname."
+    },
+    "invalid_category": {
+      "message": "Ungültige Kategorie."
+    },
+    "clip_not_found": {
+      "message": "Aufnahme nicht gefunden."
+    },
+    "invalid_device": {
+      "message": "Ungültiger Gerätename: nur Kleinbuchstaben, Ziffern, - und _."
+    },
+    "invalid_size": {
+      "message": "Ungültige Größe des Uploads."
+    },
+    "invalid_decision": {
+      "message": "Ungültige Entscheidung."
+    },
+    "already_accepted": {
+      "message": "Die Aufnahme ist bereits angenommen."
+    },
+    "already_reviewed": {
+      "message": "Die Aufnahme wurde bereits bewertet."
+    },
+    "no_candidate": {
+      "message": "Es gibt noch keine Aufnahme zum Bewerten."
+    },
+    "invalid_mode": {
+      "message": "Der Modus muss keep, remove oder extract sein."
+    },
+    "unknown_entry": {
+      "message": "Unbekanntes Aktivierungswort."
+    },
+    "choose_entry": {
+      "message": "Mehrere Aktivierungswörter sind eingerichtet: eines mit config_entry_id wählen."
+    }
+  },
+  "services": {
+    "start": {
+      "name": "Aufnahme starten",
+      "description": "Schaltet einen Satelliten in den Sammelmodus: jede folgende Äußerung wird aufgenommen, bis gestoppt wird.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename des Satelliten (Substitution wake_word_device). Leer: der Satellit, der gerade den Sprachbefehl ausführt."
+        }
+      }
+    },
+    "stop": {
+      "name": "Aufnahme beenden",
+      "description": "Beendet den Sammelmodus.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename des Satelliten (Substitution wake_word_device). Leer: der Satellit, der gerade den Sprachbefehl ausführt."
+        }
+      }
+    },
+    "review": {
+      "name": "Aufnahme bewerten",
+      "description": "Aufnahme fürs Training annehmen oder (wiederherstellbar) verwerfen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "category": {
+          "name": "Kategorie",
+          "description": "candidates, needs_review oder rejected_transcript."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename der Aufnahme."
+        },
+        "filename": {
+          "name": "Dateiname",
+          "description": "Dateiname der Aufnahme."
+        },
+        "decision": {
+          "name": "Entscheidung",
+          "description": "accept oder reject."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Optionaler Grund."
+        }
+      }
+    },
+    "review_latest": {
+      "name": "Letzte Aufnahme bewerten",
+      "description": "Notiz zur neuesten verwendbaren Aufnahme oder sie verwerfen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Was der Nutzer dazu gesagt hat."
+        },
+        "decision": {
+          "name": "Entscheidung",
+          "description": "note oder reject."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Nur Aufnahmen dieses Geräts."
+        }
+      }
+    },
+    "trim": {
+      "name": "Aufnahme zuschneiden",
+      "description": "keep: nur das Fenster behalten; remove: es herausschneiden; extract: als neue Aufnahme speichern und herausschneiden. Das Original bleibt als Sicherung.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "category": {
+          "name": "Kategorie",
+          "description": "candidates, needs_review oder rejected_transcript."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename der Aufnahme."
+        },
+        "filename": {
+          "name": "Dateiname",
+          "description": "Dateiname der Aufnahme."
+        },
+        "start_ms": {
+          "name": "Anfang",
+          "description": "Millisekunden."
+        },
+        "end_ms": {
+          "name": "Ende",
+          "description": "Millisekunden."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "keep, remove oder extract."
+        }
+      }
+    }
+  }
+}
