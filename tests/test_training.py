@@ -154,6 +154,7 @@ async def trained(hass: HomeAssistant, tmp_path: Path, aioclient_mock: AiohttpCl
         "best_faph": 0.3,
         "message": "Round 2 of 3: recognizes 95%",
         "progress_percent": 100,
+        "speaker_routes": ["speakers", "usb"],
     }
     aioclient_mock.get(f"{TRAINER}/v1/status", json=status)
     aioclient_mock.get(f"{TRAINER}/v1/model/hey_nova.json", text=json.dumps(manifest))

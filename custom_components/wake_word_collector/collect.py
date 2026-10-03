@@ -462,12 +462,13 @@ class Store:
     # Listing ------------------------------------------------------------------
 
     def stats(self) -> dict[str, Any]:
-        counts, by_device, latest = {}, {}, 0.0
+        counts, by_device, latest, devices = {}, {}, 0.0, set()
         for category in CATEGORIES:
             files = list((self.root / category).glob("*/*.wav"))
             counts[category] = len(files)
             for path in files:
                 latest = max(latest, path.stat().st_mtime)
+                devices.add(path.parent.name)
                 if category == CANDIDATES:
                     by_device[path.parent.name] = by_device.get(path.parent.name, 0) + 1
         return {
@@ -479,6 +480,7 @@ class Store:
             "triggers": counts[TRIGGERS],
             "total": sum(counts.values()),
             "candidates_by_device": by_device,
+            "devices": sorted(devices),
             "latest_recording_at": datetime.fromtimestamp(latest, UTC).isoformat() if latest else None,
         }
 

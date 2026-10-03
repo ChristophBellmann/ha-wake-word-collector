@@ -23,7 +23,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEnt
         CommandSensor(collector, "satellite_command"),
     ]
     if collector.trainer is not None:
-        entities += [TrainingSensor(collector), TrainingProgressSensor(collector), ModelSensor(collector)]
+        entities += [
+            TrainingSensor(collector),
+            TrainingProgressSensor(collector),
+            ModelSensor(collector),
+            SpeakerTestSensor(collector, "speaker_test"),
+        ]
     add(entities)
 
 
@@ -142,4 +147,33 @@ class ModelSensor(TrainerEntity, SensorEntity):
         return {
             key: self.coordinator.model.get(key)
             for key in ("url", "recall", "false_accepts_per_hour", "probability_cutoff", "message")
+        }
+
+
+class SpeakerTestSensor(_Base):
+    """Share of played recordings the satellite recognized in the last loudspeaker test."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+
+    @property
+    def native_value(self) -> float | None:
+        recall = self.collector.speaker_test.result.get("recall")
+        return None if recall is None else round(recall * 100, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        result = self.collector.speaker_test.result
+        return {
+            key: result.get(key)
+            for key in (
+                "state",
+                "device",
+                "route",
+                "satellite",
+                "clips",
+                "played",
+                "detected",
+                "message",
+                "finished_at",
+            )
         }

@@ -1,5 +1,6 @@
 #include "wakeword_recorder.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -346,6 +347,9 @@ void WakewordRecorder::upload_(const std::string &transcript, const std::string 
   esp_http_client_set_header(client, "Content-Type", "audio/wav");
   esp_http_client_set_header(client, "X-Wakeword-Token", this->token_.c_str());
   esp_http_client_set_header(client, "X-Wakeword-Device", this->device_.c_str());
+  // The ESPHome node name, so Home Assistant can find this satellite's entities.
+  const std::string node = App.get_name().c_str();
+  esp_http_client_set_header(client, "X-Wakeword-Node", node.c_str());
   esp_http_client_set_header(client, "X-Wakeword-Transcript", safe_transcript.c_str());
   if (!kind.empty())
     esp_http_client_set_header(client, "X-Wakeword-Kind", kind.c_str());
@@ -373,6 +377,7 @@ void WakewordRecorder::upload_(const std::string &transcript, const std::string 
   std::vector<http_request::Header> headers{
       {"Content-Type", "audio/wav"}, {"X-Wakeword-Token", this->token_}, {"X-Wakeword-Device", this->device_}};
   headers.push_back({"X-Wakeword-Transcript", safe_transcript});
+  headers.push_back({"X-Wakeword-Node", std::string(App.get_name().c_str())});
   if (!kind.empty())
     headers.push_back({"X-Wakeword-Kind", kind});
   auto response = this->http_request_->post(this->url_, wav, headers);

@@ -100,8 +100,10 @@ github://ChristophBellmann/ha-wake-word-collector@<version>`.
 ### 3. Voice commands
 
 - **LLM conversation agents** (with *Assist* control): nothing to do. The
-  integration registers intents the agent can call: start, stop, statistics
-  and a review of the last clip.
+  integration registers intents the agent can call: start, stop, statistics,
+  a review of the last clip, and changing how recordings are announced.
+  That wish ("announce it like a pirate") is kept in
+  `text.<wake word>_announcement` and handed to the agent with every start.
 - **Built-in conversation agent**: import the blueprint
   [voice_commands.yaml](blueprints/automation/wake_word_collector/voice_commands.yaml)
   (*Settings → Automations → Blueprints → Import*) and enter your wake word
@@ -151,6 +153,44 @@ ESPHome downloads it when compiling: flash the satellites after a new model
 (a notification and the event `wake_word_collector_model_ready` tell you).
 The model contains no audio and is served without login.
 
+### Into your ESPHome configurations
+
+If your satellites keep their models as files next to their configurations
+(and set their sensitivity steps with `set_probability_cutoff`),
+[esphome/model_update.py](esphome/model_update.py) does the whole switch,
+driven by a small YAML file
+([example](esphome/model_update.example.yaml)): it copies the model, sets the
+model substitution of every listed device, derives the sensitivity steps from
+the trainer's evaluation (the chosen cutoff, and the most sensitive cutoffs
+with at most 2x and 5x as many false activations per hour), and with
+`--build` runs your build command for every changed device.
+
+```sh
+python3 model_update.py --config wake-word-model.yaml --dry-run
+python3 model_update.py --config wake-word-model.yaml --build
+```
+
+Run it with the Python that has ESPHome installed (it needs PyYAML).
+
+### Loudspeaker test
+
+Measures a satellite with real sound, without anyone speaking: the trainer
+plays held-out recordings through a loudspeaker next to the satellite
+(routes in the service's `speaker_test.routes`), and the integration counts
+the recognitions. Choose satellite, route and number of recordings with
+`select.<wake word>_speaker_test_device`, `select.<wake word>_speaker_test_route`
+and `number.<wake word>_speaker_test_clips`, press
+`button.<wake word>_run_speaker_test`; the result (percent, played,
+recognized) is `sensor.<wake word>_speaker_test`. The route is remembered per
+satellite.
+
+A recognition is seen when the satellite's assist satellite entity leaves
+*idle*. The integration finds that entity through the ESPHome node name the
+firmware sends with every upload; set `satellite` in the service call if it
+cannot. Without it, the activation report (`wake_word_report_triggers`)
+counts, which takes up to 30 s per recording. Reports of played-back
+recordings are not stored: they are evaluation clips, not new examples.
+
 ## Services
 
 | Service | |
@@ -160,7 +200,8 @@ The model contains no audio and is served without login.
 | `wake_word_collector.review_latest_trigger` | judge the newest reported activation (`accept` or `negative`) |
 | `wake_word_collector.start_training` / `stop_training` | with a trainer service |
 | `wake_word_collector.import` | take over existing WAV recordings (e.g. from an earlier training setup) as accepted clips or negatives |
-| `wake_word_collector.speaker_test` | the trainer plays a held-out recording through a loudspeaker (`route`), to test a satellite live |
+| `wake_word_collector.run_speaker_test` | loudspeaker test: play several held-out recordings next to a satellite and count the recognitions (returns the result) |
+| `wake_word_collector.speaker_test` | the trainer plays one held-out recording through a loudspeaker (`route`) |
 | `wake_word_collector.review_latest` | note on, or reject, the newest usable clip |
 | `wake_word_collector.trim` | `keep`, `remove` or `extract` a window (ms) |
 
@@ -237,7 +278,13 @@ Dienst auf dem Trainingsrechner, startet und verfolgt man das Training aus
 Home Assistant, und das fertige Modell liefert Home Assistant direkt an die
 Satelliten aus. Mit `wake_word_report_triggers` melden die Satelliten jede
 Auslösung; Fehlalarme („Fehlalarm“ sagen oder in der Karte markieren) lernt
-das nächste Training zu ignorieren.
+das nächste Training zu ignorieren. Der Lautsprechertest misst einen
+Satelliten mit echtem Schall (der Trainer spielt zurückgehaltene Aufnahmen
+ab, Home Assistant zählt die Erkennungen), und `esphome/model_update.py`
+überträgt ein neues Modell samt Empfindlichkeitsstufen in die
+ESPHome-Konfigurationen und baut auf Wunsch die Firmware. Wie Aufnahmen
+angekündigt werden, lässt sich per Sprache ändern
+(`text.<aktivierungswort>_announcement`).
 
 Einrichtung wie oben: Integration hinzufügen (Aktivierungswort, Varianten,
 Befehlswörter wie „fertig, reicht“), das ESPHome-Paket in jeden Satelliten

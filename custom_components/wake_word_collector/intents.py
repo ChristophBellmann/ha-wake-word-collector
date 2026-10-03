@@ -15,6 +15,7 @@ STOP = "WakeWordCollectionStop"
 STATS = "WakeWordCollectionStats"
 REVIEW = "WakeWordCollectionReview"
 FALSE_ALARM = "WakeWordFalseAlarm"
+ANNOUNCEMENT = "WakeWordCollectionAnnouncement"
 
 SPEECH = {
     "en": {
@@ -26,6 +27,8 @@ SPEECH = {
         "none": "The wake word collector is not set up.",
         FALSE_ALARM: "Sorry. I noted it so I learn to ignore it.",
         "no_trigger": "I have no recording of that activation.",
+        ANNOUNCEMENT: "From now on I will announce recordings like that.",
+        "announcement_reset": "I will announce recordings the usual way again.",
     },
     "de": {
         START: "Aufnahme läuft. Sag jetzt nur das Aktivierungswort, so oft du möchtest. "
@@ -37,6 +40,8 @@ SPEECH = {
         "none": "Der Wake Word Collector ist nicht eingerichtet.",
         FALSE_ALARM: "Entschuldigung. Ich habe es mir gemerkt, damit ich darauf nicht mehr reagiere.",
         "no_trigger": "Von dieser Auslösung habe ich keine Aufnahme.",
+        ANNOUNCEMENT: "Ab jetzt kündige ich Aufnahmen so an.",
+        "announcement_reset": "Ich kündige Aufnahmen wieder wie gewohnt an.",
     },
 }
 
@@ -64,12 +69,17 @@ class StartHandler(_Handler):
     intent_type = START
     description = (
         "Starts recording examples of the wake word on the satellite the user is talking to, "
-        "e.g. to improve or train the wake word. No parameters."
+        "e.g. to improve or train the wake word. No parameters. If the result has an "
+        "'announcement', word your answer as it says."
     )
 
     async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
-        _collector(intent_obj.hass, intent_obj).send("start")
-        return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, START))
+        collector = _collector(intent_obj.hass, intent_obj)
+        collector.send("start")
+        response = self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, START))
+        if collector.announcement:
+            response.async_set_speech_slots({"announcement": collector.announcement})
+        return response
 
 
 class StopHandler(_Handler):
@@ -140,7 +150,27 @@ class FalseAlarmHandler(_Handler):
         return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, FALSE_ALARM))
 
 
-HANDLERS = (StartHandler, StopHandler, StatsHandler, ReviewHandler, FalseAlarmHandler)
+class AnnouncementHandler(_Handler):
+    intent_type = ANNOUNCEMENT
+    description = (
+        "Changes for good how the start of future wake word recordings is announced, when the user "
+        "asks for it. Pass the user's wish completely and without additions as guidance; an empty "
+        "guidance returns to the usual announcement."
+    )
+
+    @property
+    def slot_schema(self) -> dict:
+        return {vol.Required("guidance"): cv.string}
+
+    async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
+        slots = self.async_validate_slots(intent_obj.slots)
+        guidance = (slots["guidance"].get("value") or "").strip()[:255]
+        _collector(intent_obj.hass, intent_obj).update_settings(announcement=guidance)
+        key = ANNOUNCEMENT if guidance else "announcement_reset"
+        return self._respond(intent_obj, _speech(intent_obj.hass, intent_obj, key))
+
+
+HANDLERS = (StartHandler, StopHandler, StatsHandler, ReviewHandler, FalseAlarmHandler, AnnouncementHandler)
 
 
 def async_register(hass: HomeAssistant) -> None:

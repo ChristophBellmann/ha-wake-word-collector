@@ -81,6 +81,9 @@
       },
       "model": {
         "name": "Trained model"
+      },
+      "speaker_test": {
+        "name": "Loudspeaker test"
       }
     },
     "binary_sensor": {
@@ -94,11 +97,30 @@
       },
       "stop_training": {
         "name": "Stop training"
+      },
+      "run_speaker_test": {
+        "name": "Run loudspeaker test"
       }
     },
     "select": {
       "training_profile": {
         "name": "Training profile"
+      },
+      "speaker_test_device": {
+        "name": "Loudspeaker test satellite"
+      },
+      "speaker_test_route": {
+        "name": "Loudspeaker test route"
+      }
+    },
+    "text": {
+      "announcement": {
+        "name": "Recording announcement"
+      }
+    },
+    "number": {
+      "speaker_test_clips": {
+        "name": "Loudspeaker test recordings"
       }
     }
   },
@@ -189,6 +211,15 @@
     },
     "folder_not_allowed": {
       "message": "Home Assistant may not read this folder (allowlist_external_dirs)."
+    },
+    "speaker_test_running": {
+      "message": "A loudspeaker test is already running."
+    },
+    "speaker_test_no_device": {
+      "message": "No satellite has sent recordings yet."
+    },
+    "speaker_test_no_route": {
+      "message": "The trainer service has no loudspeaker route (speaker_test.routes)."
     }
   },
   "services": {
@@ -355,6 +386,32 @@
         "route": {
           "name": "Loudspeaker",
           "description": "A route of the trainer service's speaker_test configuration."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
+        }
+      }
+    },
+    "run_speaker_test": {
+      "name": "Run loudspeaker test",
+      "description": "Play several held-out recordings through a loudspeaker next to a satellite and count how many it recognizes. Returns the result; it also appears in the loudspeaker test sensor.",
+      "fields": {
+        "device": {
+          "name": "Satellite",
+          "description": "Its recording name (wake_word_device). Default: the one chosen in the loudspeaker test select."
+        },
+        "route": {
+          "name": "Loudspeaker",
+          "description": "A route of the trainer service. Default: the one last used for this satellite."
+        },
+        "clips": {
+          "name": "Recordings",
+          "description": "How many recordings to play (1-20)."
+        },
+        "satellite": {
+          "name": "Assist satellite",
+          "description": "Its assist_satellite entity, if not found automatically from the firmware (faster than waiting for the activation report)."
         },
         "config_entry_id": {
           "name": "Wake word",

@@ -15,6 +15,9 @@
       },
       "model": {
         "default": "mdi:package-variant-closed-check"
+      },
+      "speaker_test": {
+        "default": "mdi:target"
       }
     },
     "binary_sensor": {
@@ -28,11 +31,30 @@
       },
       "stop_training": {
         "default": "mdi:stop-circle"
+      },
+      "run_speaker_test": {
+        "default": "mdi:speaker-play"
       }
     },
     "select": {
       "training_profile": {
         "default": "mdi:tune-variant"
+      },
+      "speaker_test_device": {
+        "default": "mdi:speaker-wireless"
+      },
+      "speaker_test_route": {
+        "default": "mdi:speaker"
+      }
+    },
+    "text": {
+      "announcement": {
+        "default": "mdi:message-text-outline"
+      }
+    },
+    "number": {
+      "speaker_test_clips": {
+        "default": "mdi:counter"
       }
     }
   },
@@ -62,6 +84,9 @@
       "service": "mdi:stop-circle"
     },
     "speaker_test": {
+      "service": "mdi:speaker-play"
+    },
+    "run_speaker_test": {
       "service": "mdi:speaker-play"
     },
     "import": {

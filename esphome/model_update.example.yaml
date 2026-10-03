@@ -1,0 +1,30 @@
+# Configuration for model_update.py: which ESPHome configurations get a newly
+# trained model. Paths are relative to this file; keep it next to your ESPHome
+# configurations (for the ESPHome add-on: /config/esphome/).
+slug: hey_nova                      # the wake word's slug in the integration
+# Where the integration keeps the model it took over from the trainer:
+# <storage folder of the entry>/model (default <config>/wake_word_collector/<slug>/model).
+source: ../wake_word_collector/hey_nova/model
+models: models                      # model files, referenced as models/<name>.json
+name: "{slug}_{date}"               # new file name; {slug}, {date} (YYYYMMDD)
+min_cutoff: 0.5                     # never more sensitive than this (0-1)
+
+# Sensitivity substitutions -> allowed false activations per hour, as a multiple
+# of the trainer's budget (max_false_accepts_per_hour). 1 = the cutoff the
+# trainer chose. Override per device with `ladder:` there.
+ladder:
+  wake_word_slight_cutoff_uint8: 1
+  wake_word_moderate_cutoff_uint8: 2
+  wake_word_very_cutoff_uint8: 5
+
+devices:
+  - file: kitchen-satellite.yaml
+    model: wake_word_model_file     # the substitution used in `micro_wake_word: models: - model: ...`
+  - file: living-room.yaml
+    model: wake_word_model_file
+    ladder:                         # this one only has two steps
+      wake_word_slight_cutoff_uint8: 1
+      wake_word_very_cutoff_uint8: 3
+
+# Optional: with --build, run for every changed device ({file} = its configuration).
+build: [esphome, run, "{file}", --no-logs]

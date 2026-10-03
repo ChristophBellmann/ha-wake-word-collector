@@ -81,6 +81,9 @@
       },
       "model": {
         "name": "Trainiertes Modell"
+      },
+      "speaker_test": {
+        "name": "Lautsprechertest"
       }
     },
     "binary_sensor": {
@@ -94,11 +97,30 @@
       },
       "stop_training": {
         "name": "Training stoppen"
+      },
+      "run_speaker_test": {
+        "name": "Lautsprechertest starten"
       }
     },
     "select": {
       "training_profile": {
         "name": "Trainingsprofil"
+      },
+      "speaker_test_device": {
+        "name": "Lautsprechertest Satellit"
+      },
+      "speaker_test_route": {
+        "name": "Lautsprechertest Ausgang"
+      }
+    },
+    "text": {
+      "announcement": {
+        "name": "Aufnahmeansage"
+      }
+    },
+    "number": {
+      "speaker_test_clips": {
+        "name": "Lautsprechertest Aufnahmen"
       }
     }
   },
@@ -189,6 +211,15 @@
     },
     "folder_not_allowed": {
       "message": "Home Assistant darf diesen Ordner nicht lesen (allowlist_external_dirs)."
+    },
+    "speaker_test_running": {
+      "message": "Es läuft schon ein Lautsprechertest."
+    },
+    "speaker_test_no_device": {
+      "message": "Noch kein Satellit hat Aufnahmen geschickt."
+    },
+    "speaker_test_no_route": {
+      "message": "Der Trainer-Dienst hat keinen Lautsprecher-Ausgang (speaker_test.routes)."
     }
   },
   "services": {
@@ -355,6 +386,32 @@
         "route": {
           "name": "Lautsprecher",
           "description": "Eine Route aus der speaker_test-Konfiguration des Trainer-Dienstes."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort",
+          "description": "Nötig bei mehreren Aktivierungswörtern."
+        }
+      }
+    },
+    "run_speaker_test": {
+      "name": "Lautsprechertest ausführen",
+      "description": "Mehrere zurückgehaltene Aufnahmen über einen Lautsprecher neben einem Satelliten abspielen und zählen, wie viele er erkennt. Gibt das Ergebnis zurück; es steht auch im Sensor Lautsprechertest.",
+      "fields": {
+        "device": {
+          "name": "Satellit",
+          "description": "Sein Aufnahmename (wake_word_device). Vorgabe: der in der Auswahl des Lautsprechertests."
+        },
+        "route": {
+          "name": "Lautsprecher",
+          "description": "Ein Ausgang des Trainer-Dienstes. Vorgabe: der zuletzt für diesen Satelliten benutzte."
+        },
+        "clips": {
+          "name": "Aufnahmen",
+          "description": "Wie viele Aufnahmen abgespielt werden (1-20)."
+        },
+        "satellite": {
+          "name": "Assist-Satellit",
+          "description": "Seine assist_satellite-Entität, falls sie nicht automatisch aus der Firmware erkannt wird (schneller als das Warten auf die Auslösungsmeldung)."
         },
         "config_entry_id": {
           "name": "Aktivierungswort",

@@ -107,6 +107,27 @@ speaker_test:
       example: speakers
       selector:
         text:
+run_speaker_test:
+  fields:
+    config_entry_id: *entry
+    device:
+      example: kitchen-satellite
+      selector:
+        text:
+    route:
+      example: speakers
+      selector:
+        text:
+    clips:
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+    satellite:
+      selector:
+        entity:
+          domain: assist_satellite
 import:
   fields:
     config_entry_id: *entry

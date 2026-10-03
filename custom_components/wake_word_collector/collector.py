@@ -3,6 +3,7 @@ satellites listen to."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +11,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.storage import Store as SettingsStore
 from homeassistant.util import dt as dt_util
 
-from .collect import CollectorError, Phrases, Store
+from .collect import DEVICE_RE, CollectorError, Phrases, Store
 from .const import (
     COMMAND_IDLE,
     CONF_CONTROL,
@@ -25,6 +27,8 @@ from .const import (
     SIGNAL_UPDATE,
     UPLOAD_URL,
 )
+
+NODE_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
 
 
 def raise_translated(err: CollectorError) -> HomeAssistantError:
@@ -47,6 +51,12 @@ class Collector:
         self.last_upload: dict[str, Any] | None = None
         # TrainerCoordinator when a Wake Word Trainer service is configured.
         self.trainer = None
+        # SpeakerTest; consumes trigger reports of the device under test.
+        self.speaker_test = None
+        # Settings changed from entities: announcement guidance, speaker test
+        # choices, and which ESPHome node each recording device is.
+        self._settings_store = SettingsStore(hass, 1, f"{DOMAIN}.{entry.entry_id}")
+        self.settings: dict[str, Any] = {}
 
     @property
     def slug(self) -> str:
@@ -62,7 +72,36 @@ class Collector:
 
     async def async_setup(self) -> None:
         await self.hass.async_add_executor_job(self.store.ensure)
+        self.settings = await self._settings_store.async_load() or {}
         await self.async_refresh()
+
+    @callback
+    def update_settings(self, **values: Any) -> None:
+        """Change and keep settings; nested dicts are merged."""
+        for key, value in values.items():
+            if isinstance(value, dict):
+                self.settings[key] = {**self.settings.get(key, {}), **value}
+            else:
+                self.settings[key] = value
+        self._settings_store.async_delay_save(lambda: self.settings, 1)
+        self.notify()
+
+    async def async_unload(self) -> None:
+        if self.settings:
+            await self._settings_store.async_save(self.settings)
+
+    @property
+    def announcement(self) -> str:
+        return self.settings.get("announcement", "")
+
+    @property
+    def devices(self) -> list[str]:
+        """Every device that sent recordings (also from earlier firmware)."""
+        return sorted(set(self.stats.get("devices", [])) | set(self.settings.get("nodes", {})))
+
+    def node(self, device: str) -> str | None:
+        """ESPHome node name of a recording device, as reported by its firmware."""
+        return self.settings.get("nodes", {}).get(device)
 
     async def async_refresh(self) -> None:
         self.stats = await self.hass.async_add_executor_job(self.store.stats)
@@ -88,7 +127,15 @@ class Collector:
         await self.async_refresh()
         return result
 
-    async def async_add(self, device: str, transcript: str, body: bytes, kind: str = "utterance") -> list[dict]:
+    async def async_add(
+        self, device: str, transcript: str, body: bytes, kind: str = "utterance", node: str = ""
+    ) -> list[dict]:
+        device, node = device.lower(), node.lower()
+        if node and NODE_RE.fullmatch(node) and DEVICE_RE.fullmatch(device) and self.node(device) != node:
+            self.update_settings(nodes={device: node})
+        if kind == "trigger" and self.speaker_test is not None and self.speaker_test.consume(device):
+            # Played back by the loudspeaker test: an evaluation clip, not a new example.
+            return []
         records = await self._run(self.store.add, device, transcript, body, kind)
         self.last_upload = records[-1]
         self.notify()

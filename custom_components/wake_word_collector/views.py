@@ -70,7 +70,8 @@ class UploadView(HomeAssistantView):
         transcript = _header_text(request.headers.get("X-Wakeword-Transcript", "")).strip()
         kind = request.headers.get("X-Wakeword-Kind", "utterance").strip().lower() or "utterance"
         try:
-            records = await collector.async_add(device, transcript, body, kind)
+            node = request.headers.get("X-Wakeword-Node", "").strip()
+            records = await collector.async_add(device, transcript, body, kind, node)
         except HomeAssistantError as err:
             cause = err.__cause__
             code = cause.code if isinstance(cause, CollectorError) else "error"

@@ -18,10 +18,11 @@ from . import intents
 from .collect import DECISIONS, REVIEWABLE
 from .collector import Collector
 from .const import AUDIO_URL, CARD_URL, CONF_TRAINER_TOKEN, CONF_TRAINER_URL, DOMAIN
+from .speaker_test import MAX_CLIPS, SpeakerTest
 from .trainer import TrainerClient, TrainerCoordinator
 from .views import VIEWS
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TEXT]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 ENTRY = vol.Optional("config_entry_id")
 
@@ -56,6 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_TRAINER_URL):
         client = TrainerClient(hass, entry.options[CONF_TRAINER_URL], entry.options.get(CONF_TRAINER_TOKEN, ""))
         collector.trainer = TrainerCoordinator(hass, collector, client)
+        collector.speaker_test = SpeakerTest(hass, collector)
         await collector.trainer.async_load_model_info()
         # The training computer may be off; entities then show it as unavailable.
         await collector.trainer.async_refresh()
@@ -73,7 +75,8 @@ async def _options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        collector: Collector = hass.data[DOMAIN].pop(entry.entry_id)
+        await collector.async_unload()
     return unloaded
 
 
@@ -130,6 +133,14 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def speaker_test(call: ServiceCall) -> dict[str, Any]:
         return await _trainer(call).client.speaker_test(call.data["route"])
+
+    async def run_speaker_test(call: ServiceCall) -> dict[str, Any]:
+        _trainer(call)
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        data = call.data
+        return await collector.speaker_test.async_run(
+            device=data.get("device"), route=data.get("route"), clips=data.get("clips"), satellite=data.get("satellite")
+        )
 
     async def import_folder(call: ServiceCall) -> dict[str, Any]:
         collector = _collector(hass, call.data.get("config_entry_id"))
@@ -210,6 +221,21 @@ def _register_services(hass: HomeAssistant) -> None:
         "speaker_test",
         speaker_test,
         schema=vol.Schema({ENTRY: cv.string, vol.Required("route"): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "run_speaker_test",
+        run_speaker_test,
+        schema=vol.Schema(
+            {
+                ENTRY: cv.string,
+                vol.Optional("device"): cv.string,
+                vol.Optional("route"): cv.string,
+                vol.Optional("clips"): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_CLIPS)),
+                vol.Optional("satellite"): cv.entity_id,
+            }
+        ),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
