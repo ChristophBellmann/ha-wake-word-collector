@@ -1,0 +1,201 @@
+# Wake Word Collector: collection mode for an ESPHome voice satellite.
+#
+# Include it in the satellite's configuration (see README):
+#
+#   packages:
+#     wake_word_collection:
+#       url: https://github.com/ChristophBellmann/ha-wake-word-collector
+#       ref: main
+#       files:
+#         - path: esphome/wake-word-collection.yaml
+#           vars:
+#             wake_word_device: kitchen-satellite
+#             wake_word_url: http://homeassistant.local:8123/api/wake_word_collector/clips/hey_jarvis
+#             wake_word_token: !secret wake_word_token
+#             wake_word_command_entity: sensor.hey_jarvis_satellite_command
+#             wake_word_microphone_id: i2s_mics
+#             wake_word_va_id: va
+#             wake_word_media_player_id: external_media_player
+#
+# Requires http_request (id http_request_id), voice_assistant, micro_wake_word
+# and a media player, as on the common voice satellites.
+#
+# In collection mode the voice assistant listens continuously. Every utterance
+# is recorded from the satellite's own microphone (up to wake_word_max_duration,
+# including the moment before listening started) and uploaded with its
+# transcript to Home Assistant, which sorts it. Responses are not played back.
+
+defaults:
+  wake_word_device: voice-satellite
+  wake_word_url: http://homeassistant.local:8123/api/wake_word_collector/clips/wake_word
+  wake_word_token: replace-me
+  wake_word_command_entity: sensor.wake_word_satellite_command
+  wake_word_microphone_id: i2s_mics
+  wake_word_va_id: va
+  wake_word_media_player_id: external_media_player
+  wake_word_max_duration: 8s
+  wake_word_components: github://ChristophBellmann/ha-wake-word-collector/esphome/components@main
+
+globals:
+  - id: wake_word_collection_active
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: wake_word_collection_arm_after_end
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: wake_word_collection_stop_after_end
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+external_components:
+  - source: ${wake_word_components}
+    components: [wakeword_recorder]
+
+wakeword_recorder:
+  id: wake_word_recorder
+  microphone:
+    microphone: ${wake_word_microphone_id}
+    channels: 0
+  http_request_id: http_request_id
+  url: ${wake_word_url}
+  token: ${wake_word_token}
+  device: ${wake_word_device}
+  max_duration: ${wake_word_max_duration}
+
+text_sensor:
+  # "<start|stop>:<target>:<time>"; target "*" means: the satellite that is
+  # running the current voice command (the one the user asked).
+  - platform: homeassistant
+    id: wake_word_collection_command
+    entity_id: ${wake_word_command_entity}
+    internal: true
+    on_value:
+      - lambda: |-
+          const size_t first = x.find(':');
+          const size_t second = x.find(':', first == std::string::npos ? 0 : first + 1);
+          if (first == std::string::npos || second == std::string::npos)
+            return;
+          const std::string action = x.substr(0, first);
+          const std::string target = x.substr(first + 1, second - first - 1);
+          const bool running = id(${wake_word_va_id}).is_running();
+          const bool for_me = target == "${wake_word_device}" || (target == "*" && running);
+          if (!for_me)
+            return;
+          if (action == "start") {
+            if (running) {
+              // Answer the request first, start collecting when this run ends.
+              id(wake_word_collection_arm_after_end) = true;
+            } else {
+              id(wake_word_collection_active) = true;
+              id(${wake_word_va_id}).set_media_player(nullptr);
+              id(wake_word_collection_start_now).execute();
+            }
+          } else if (action == "stop" && id(wake_word_collection_active)) {
+            id(wake_word_collection_active) = false;
+            id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
+            id(wake_word_recorder).discard_capture();
+            if (running) {
+              id(wake_word_collection_stop_after_end) = true;
+            } else {
+              id(wake_word_collection_stop_now).execute();
+            }
+          }
+
+script:
+  - id: wake_word_collection_start_now
+    then:
+      - micro_wake_word.stop:
+      - voice_assistant.start_continuous:
+          id: ${wake_word_va_id}
+  - id: wake_word_collection_stop_now
+    then:
+      - voice_assistant.stop:
+          id: ${wake_word_va_id}
+
+binary_sensor:
+  - platform: template
+    id: wake_word_collection_status
+    name: Wake word collection
+    entity_category: diagnostic
+    lambda: return id(wake_word_collection_active);
+
+button:
+  - platform: template
+    name: Start wake word collection
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(wake_word_collection_active) = true;
+          id(${wake_word_va_id}).set_media_player(nullptr);
+      - script.execute: wake_word_collection_start_now
+  - platform: template
+    name: Stop wake word collection
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(wake_word_collection_active) = false;
+          id(wake_word_collection_arm_after_end) = false;
+          id(wake_word_collection_stop_after_end) = false;
+          id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
+      - wakeword_recorder.discard: wake_word_recorder
+      - script.execute: wake_word_collection_stop_now
+
+voice_assistant:
+  id: ${wake_word_va_id}
+  on_listening:
+    - if:
+        condition:
+          lambda: return id(wake_word_collection_active);
+        then:
+          - wakeword_recorder.capture: wake_word_recorder
+  on_stt_end:
+    - if:
+        condition:
+          lambda: return id(wake_word_collection_active);
+        then:
+          - wakeword_recorder.finish:
+              id: wake_word_recorder
+              transcript: !lambda return x;
+  on_error:
+    - if:
+        condition:
+          lambda: return id(wake_word_collection_active);
+        then:
+          - wakeword_recorder.discard: wake_word_recorder
+  on_end:
+    - if:
+        condition:
+          lambda: return id(wake_word_collection_arm_after_end);
+        then:
+          - lambda: |-
+              id(wake_word_collection_arm_after_end) = false;
+              id(wake_word_collection_active) = true;
+              id(${wake_word_va_id}).set_media_player(nullptr);
+          - micro_wake_word.stop:
+    - if:
+        condition:
+          lambda: return id(wake_word_collection_active);
+        then:
+          - wakeword_recorder.upload: wake_word_recorder
+          # The media player's on_idle may re-arm micro_wake_word in the same
+          # scheduler turn. Let it finish, then make collection authoritative.
+          - delay: 250ms
+          - micro_wake_word.stop:
+          - voice_assistant.start_continuous:
+              id: ${wake_word_va_id}
+    - if:
+        condition:
+          lambda: return !id(wake_word_collection_active);
+        then:
+          - wakeword_recorder.upload: wake_word_recorder
+          - lambda: id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
+          - if:
+              condition:
+                lambda: return id(wake_word_collection_stop_after_end);
+              then:
+                - lambda: id(wake_word_collection_stop_after_end) = false;
+                - voice_assistant.stop:
+                    id: ${wake_word_va_id}

@@ -1,0 +1,70 @@
+# Validation target for the package: `esphome config tests/esphome/satellite.yaml`.
+esphome:
+  name: test-satellite
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+logger:
+api:
+wifi:
+  ssid: test
+  password: test-password
+
+http_request:
+  id: http_request_id
+
+i2s_audio:
+  - id: i2s_bus
+    i2s_lrclk_pin: GPIO4
+    i2s_bclk_pin: GPIO5
+
+microphone:
+  - platform: i2s_audio
+    id: i2s_mics
+    i2s_audio_id: i2s_bus
+    i2s_din_pin: GPIO6
+    adc_type: external
+    pdm: false
+    sample_rate: 16000
+    bits_per_sample: 16bit
+
+speaker:
+  - platform: i2s_audio
+    id: i2s_speaker
+    i2s_audio_id: i2s_bus
+    i2s_dout_pin: GPIO7
+    dac_type: external
+
+media_player:
+  - platform: speaker
+    id: external_media_player
+    name: Media player
+    announcement_pipeline:
+      speaker: i2s_speaker
+      format: WAV
+
+micro_wake_word:
+  microphone: i2s_mics
+  models:
+    - model: okay_nabu
+
+voice_assistant:
+  id: va
+  microphone: i2s_mics
+  media_player: external_media_player
+  micro_wake_word:
+
+packages:
+  wake_word_collection: !include
+    file: ../../esphome/wake-word-collection.yaml
+    vars:
+      wake_word_device: test-satellite
+      wake_word_token: test-token-test-token-test-token
+      wake_word_command_entity: sensor.hey_jarvis_satellite_command
+      wake_word_components: ../../esphome/components
