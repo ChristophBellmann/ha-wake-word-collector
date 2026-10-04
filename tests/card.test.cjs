@@ -8,7 +8,8 @@ const source = fs.readFileSync(path.join(__dirname, '../custom_components/wake_w
 const registry = new Map();
 const window = {};
 const context = vm.createContext({
-  window, confirm: () => true, Date, Promise, Map, Math, Number, String, Array, setTimeout,
+  window, confirm: () => true, Date, Promise, Map, Math, Number, String, Array, setTimeout, clearTimeout,
+  Audio: class { pause() {} async play() { throw new Error("Playback failed"); } },
   HTMLElement: class { attachShadow() { this.shadowRoot = {innerHTML: '', querySelector: () => null, querySelectorAll: () => []}; } },
   customElements: {get: n => registry.get(n), define: (n, c) => registry.set(n, c)},
 });
@@ -80,5 +81,24 @@ function card(language) {
   assert.equal(calls.at(-1)[2].end_ms, 900);
   assert.equal(en.editing, null);
   assert.deepEqual(JSON.parse(JSON.stringify(en.peaks([0, 0.5, -1, 0.25], 2))), [0.5, 1]);
+  de.setConfig({device_names: {kitchen: 'Büro'}, recordings_entity: 'sensor.test_recordings'});
+  de.render();
+  assert.ok(de.shadowRoot.innerHTML.includes('Büro'));
+  de.signed = async () => '/signed';
+  await de.play(items[0]);
+  assert.equal(de.message, 'Playback failed');
+  let refreshes = 0;
+  de.load = async () => { refreshes++; };
+  const state = {state: '1', attributes: {candidates_by_device: {kitchen: 1}}};
+  de.hass = {...de._hass, states: {'sensor.test_recordings': state}};
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.equal(refreshes, 1);
+  de.hass = {...de._hass, states: {'sensor.test_recordings': JSON.parse(JSON.stringify(state))}};
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.equal(refreshes, 1, 'Unchanged statistics do not cause a refresh loop.');
+  de.hass = {...de._hass, states: {'sensor.test_recordings': {...state, state: '2'}}};
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.equal(refreshes, 2, 'New recordings refresh without a manual click.');
+  de.disconnectedCallback();
   console.log('card ok');
 })().catch(error => { console.error(error); process.exitCode = 1; });

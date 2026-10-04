@@ -448,6 +448,20 @@
           "description": "Nötig bei mehreren Aktivierungswörtern."
         }
       }
+    },
+    "record": {
+      "name": "Mikrofonaufnahme",
+      "description": "Eine kurze Aufnahme direkt vom Satellitenmikrofon speichern, ohne Assist oder Workstation. Danach unter „Zu prüfen“ anhören und freigeben.",
+      "fields": {
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätekennung aus der ESPHome-Konfiguration."
+        },
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        }
+      }
     }
   }
 }

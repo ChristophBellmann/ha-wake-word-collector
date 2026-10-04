@@ -12,6 +12,14 @@ stop:
   fields:
     config_entry_id: *entry
     device: *device
+record:
+  fields:
+    config_entry_id: *entry
+    device:
+      required: true
+      example: kitchen-satellite
+      selector:
+        text:
 review:
   fields:
     config_entry_id: *entry

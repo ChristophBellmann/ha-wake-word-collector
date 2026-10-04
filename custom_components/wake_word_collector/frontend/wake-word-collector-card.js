@@ -49,6 +49,8 @@ class WakeWordCollectorCard extends HTMLElement {
     this.busy = false;
     this.editing = null; // {key, item, peaks, duration, start, end}
     this.audioUrls = {};
+    this.refreshTimer = null;
+    this.audio = null;
   }
   setConfig(config) { this.config = config || {}; }
   static getStubConfig() { return {}; }
@@ -60,7 +62,17 @@ class WakeWordCollectorCard extends HTMLElement {
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
+    const sensors = Object.entries(hass.states || {}).filter(([id, state]) =>
+      this.config?.recordings_entity ? id === this.config.recordings_entity :
+        id.startsWith('sensor.') && state.attributes?.candidates_by_device !== undefined);
+    const fingerprint = JSON.stringify(sensors.map(([id, state]) => [id, state.state, state.attributes]));
+    const changed = fingerprint !== this.fingerprint;
+    this.fingerprint = fingerprint;
     if (first) this.load();
+    else if (changed) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = setTimeout(() => { if (!this.busy && !this.editing) this.load(); }, 300);
+    }
   }
   async load() {
     try {
@@ -95,7 +107,18 @@ class WakeWordCollectorCard extends HTMLElement {
     return result.path;
   }
   async play(item) {
-    new Audio(await this.signed(item)).play();
+    try {
+      this.audio?.pause();
+      this.audio = new Audio(await this.signed(item));
+      await this.audio.play();
+    } catch (error) {
+      this.message = error.message || String(error);
+      this.render();
+    }
+  }
+  disconnectedCallback() {
+    clearTimeout(this.refreshTimer);
+    this.audio?.pause();
   }
   async service(name, data) {
     this.busy = true;
@@ -144,7 +167,9 @@ class WakeWordCollectorCard extends HTMLElement {
     audio.currentTime = e.start;
     const stop = () => { if (audio.currentTime >= e.end) { audio.pause(); audio.removeEventListener('timeupdate', stop); } };
     audio.addEventListener('timeupdate', stop);
-    audio.play();
+    this.audio?.pause();
+    this.audio = audio;
+    await audio.play();
   }
   async trim(mode) {
     const e = this.editing;
@@ -194,7 +219,7 @@ class WakeWordCollectorCard extends HTMLElement {
     const length = item.duration_ms != null ? ` · ${this.num(item.duration_ms / 1000)} s` : '';
     return `<div class="item ${item.category === 'candidates' ? '' : 'check'}" data-key="${escapeHtml(key)}">
       <div class="head"><strong>${escapeHtml(when)}</strong><span class="badge">${escapeHtml(this.t('cat_' + item.category))}</span></div>
-      <div class="muted">${escapeHtml(item.device + length)}</div>
+      <div class="muted">${escapeHtml((this.config?.device_names?.[item.device] || item.device) + length)}</div>
       ${item.transcript ? `<div class="transcript">${escapeHtml(this.t('heard', {text: item.transcript}))}</div>` : ''}
       ${item.note ? `<div class="muted">${escapeHtml(item.note)}</div>` : ''}
       <div class="actions"><button data-action="play">${escapeHtml(this.t('play'))}</button>
@@ -249,7 +274,7 @@ class WakeWordCollectorCard extends HTMLElement {
       row.querySelector('[data-action="negative"]')?.addEventListener('click', () => this.review(item, 'negative'));
       row.querySelector('[data-action="reject"]').onclick = () => this.review(item, 'reject');
       row.querySelector('[data-action="edit"]').onclick = () => this.edit(item).catch(error => { this.message = error.message || String(error); this.render(); });
-      row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => this.playSelection());
+      row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => this.playSelection().catch(error => { this.message = error.message || String(error); this.render(); }));
       row.querySelectorAll('[data-trim]').forEach(button => { button.onclick = () => this.trim(button.dataset.trim); });
       row.querySelectorAll('[data-edge]').forEach(input => {
         input.oninput = () => {

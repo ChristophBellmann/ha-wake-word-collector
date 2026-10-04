@@ -258,3 +258,14 @@ async def test_entity_ids_do_not_depend_on_language(hass: HomeAssistant, tmp_pat
     assert hass.states.get("sensor.hey_nova_satellite_command") is not None
     recordings = hass.states.get("sensor.hey_nova_recordings")
     assert recordings.attributes["friendly_name"] == "Hey Nova Aufnahmen"
+
+
+async def test_direct_microphone_recording(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
+    await hass.services.async_call(DOMAIN, "record", {"device": "office"}, blocking=True)
+    await hass.async_block_till_done()
+    command = hass.states.get("sensor.hey_nova_satellite_command")
+    assert command.state.startswith("record:office:")
+    client = await hass_client_no_auth()
+    response = await upload(client, "", wav_bytes(speech(1.5)), device="office")
+    assert response.status == 201
+    assert (await response.json())["records"][0]["category"] == "needs_review"

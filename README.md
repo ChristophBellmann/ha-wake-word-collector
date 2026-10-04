@@ -68,6 +68,14 @@ HACS → ⋮ → *Custom repositories* →
 The next step shows the **upload URL**, a **token** and the **command sensor**
 for the satellites. They are shown again under *Configure*.
 
+For a GUI microphone test without Assist or the training computer, call
+`wake_word_collector.record` with the satellite's `device` identifier. It records
+`wake_word_max_duration` (default eight seconds), then restores wake word detection.
+The clip has no transcript: listen under **To check** and accept it manually.
+`wake_word_collector.stop` cancels it. This requires the matching ESPHome package.
+The review card updates when recordings change; optional `recordings_entity` selects
+the statistics sensor and `device_names` maps device identifiers to room names.
+
 ### 2. Satellites (ESPHome)
 
 Add to every satellite's configuration, with your IDs:
@@ -298,3 +306,15 @@ Befehlswörter wie „fertig, reicht“), das ESPHome-Paket in jeden Satelliten
 einbinden, mit einem LLM-Agenten sofort sprachgesteuert, mit dem eingebauten
 Agenten über den Blueprint mit deutschen Sätzen. Oberfläche und Karte sind auf
 Deutsch und Englisch.
+
+### Direkte Mikrofonaufnahme aus der GUI
+
+Die Aktion `wake_word_collector.record` nimmt auf dem gewählten `device` direkt
+am Mikrofon auf, standardmäßig acht Sekunden (`wake_word_max_duration`). Assist
+und Workstation werden dafür nicht benötigt. Danach die Aufnahme in **Zu prüfen**
+anhören und manuell freigeben. `wake_word_collector.stop` bricht die Aufnahme ab.
+Dafür muss auch das ESPHome-Paket auf demselben Stand sein.
+
+Die Aufnahmekarte aktualisiert sich bei Änderungen automatisch. Optional wählt
+`recordings_entity` den Bestandssensor und `device_names` ordnet Gerätekennungen
+den eigenen Raumnamen zu.

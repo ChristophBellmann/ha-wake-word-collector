@@ -448,6 +448,20 @@
           "description": "Needed with several wake words."
         }
       }
+    },
+    "record": {
+      "name": "Microphone recording",
+      "description": "Save a short recording directly from the satellite microphone, without Assist or the training computer. Listen to it under To check and accept it.",
+      "fields": {
+        "device": {
+          "name": "Device",
+          "description": "Device identifier from the ESPHome configuration."
+        },
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        }
+      }
     }
   }
 }

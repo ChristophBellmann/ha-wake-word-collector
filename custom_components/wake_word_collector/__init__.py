@@ -95,6 +95,9 @@ def _register_services(hass: HomeAssistant) -> None:
     async def start(call: ServiceCall) -> None:
         _collector(hass, call.data.get("config_entry_id")).send("start", call.data.get("device"))
 
+    async def record(call: ServiceCall) -> None:
+        _collector(hass, call.data.get("config_entry_id")).send("record", call.data["device"])
+
     async def stop(call: ServiceCall) -> None:
         _collector(hass, call.data.get("config_entry_id")).send("stop", call.data.get("device"))
 
@@ -172,6 +175,9 @@ def _register_services(hass: HomeAssistant) -> None:
     target = vol.Schema({ENTRY: cv.string, vol.Optional("device"): cv.string})
     hass.services.async_register(DOMAIN, "start", start, schema=target)
     hass.services.async_register(DOMAIN, "stop", stop, schema=target)
+    hass.services.async_register(
+        DOMAIN, "record", record, schema=vol.Schema({ENTRY: cv.string, vol.Required("device"): cv.string})
+    )
     hass.services.async_register(
         DOMAIN,
         "review",
