@@ -117,7 +117,7 @@ void WakewordRecorder::reset_speech() {
   this->capture_started_ms_ = millis();
 }
 
-bool WakewordRecorder::start_capture() {
+bool WakewordRecorder::start_capture(bool manual) {
   LockGuard guard{this->mutex_};
   if (this->upload_pending_ || this->uploading_) {
     this->capture_after_upload_ = true;
@@ -128,7 +128,9 @@ bool WakewordRecorder::start_capture() {
     ESP_LOGW(TAG, "Capture ignored: recorder is unavailable or busy");
     return false;
   }
-  const size_t target_bytes = static_cast<size_t>(OUTPUT_SAMPLE_RATE) * this->max_duration_ms_ / 1000 * 2;
+  this->manual_capture_ = manual;
+  this->capture_duration_ms_ = manual ? this->manual_duration_ms_ : this->max_duration_ms_;
+  const size_t target_bytes = static_cast<size_t>(OUTPUT_SAMPLE_RATE) * this->capture_duration_ms_ / 1000 * 2;
   this->pcm_.clear();
   this->pcm_.reserve(target_bytes);
   if (this->pcm_.capacity() < target_bytes) {
@@ -228,7 +230,7 @@ void WakewordRecorder::receive_audio_(const std::vector<uint8_t> &data) {
   this->track_level_(data);
   if (!this->recording_)
     return;
-  const size_t target_bytes = static_cast<size_t>(OUTPUT_SAMPLE_RATE) * this->max_duration_ms_ / 1000 * 2;
+  const size_t target_bytes = static_cast<size_t>(OUTPUT_SAMPLE_RATE) * this->capture_duration_ms_ / 1000 * 2;
   for (size_t offset = 0; offset + 1 < data.size(); offset += 2) {
     if ((this->source_sample_index_++ % this->decimation_) != 0)
       continue;
@@ -240,7 +242,7 @@ void WakewordRecorder::receive_audio_(const std::vector<uint8_t> &data) {
         this->write_position_ = 0;
         this->buffer_full_ = true;
       }
-    } else {
+    } else if (!this->manual_capture_) {
       this->pcm_[this->write_position_] = data[offset];
       this->pcm_[this->write_position_ + 1] = data[offset + 1];
       this->write_position_ = (this->write_position_ + 2) % target_bytes;

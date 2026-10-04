@@ -15,6 +15,7 @@ CONF_DEVICE = "device"
 CONF_HTTP_REQUEST_ID = "http_request_id"
 CONF_TOKEN = "token"
 CONF_MAX_DURATION = "max_duration"
+CONF_MANUAL_DURATION = "manual_duration"
 
 recorder_ns = cg.esphome_ns.namespace("wakeword_recorder")
 WakewordRecorder = recorder_ns.class_("WakewordRecorder", cg.Component)
@@ -46,6 +47,10 @@ CONFIG_SCHEMA = cv.Schema(
         # Up to 120 s for longer recordings than wake words. The buffer lives
         # in PSRAM and is reserved when a capture starts; if that fails,
         # start_capture() logs it and aborts cleanly. 8 s suit wake words.
+        cv.Optional(CONF_MANUAL_DURATION, default="30s"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(seconds=2), max=cv.TimePeriod(seconds=120)),
+        ),
         cv.Optional(CONF_MAX_DURATION, default="8s"): cv.All(
             cv.positive_time_period_milliseconds,
             cv.Range(min=cv.TimePeriod(seconds=2), max=cv.TimePeriod(seconds=120)),
@@ -71,6 +76,7 @@ async def to_code(config):
     cg.add(var.set_token(config[CONF_TOKEN]))
     cg.add(var.set_device(config[CONF_DEVICE]))
     cg.add(var.set_max_duration_ms(config[CONF_MAX_DURATION].total_milliseconds))
+    cg.add(var.set_manual_duration_ms(config[CONF_MANUAL_DURATION].total_milliseconds))
 
 
 @automation.register_action(
@@ -94,7 +100,7 @@ async def capture_action_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(WakewordRecorder),
             cv.Required("transcript"): cv.templatable(cv.string_strict),
             # "trigger": the audio before a wake word detection, for the collector to judge.
-            cv.Optional("kind"): cv.templatable(cv.one_of("utterance", "trigger", lower=True)),
+            cv.Optional("kind"): cv.templatable(cv.one_of("utterance", "trigger", "manual", lower=True)),
         }
     ),
     synchronous=True,

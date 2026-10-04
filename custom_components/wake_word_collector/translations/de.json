@@ -451,7 +451,7 @@
     },
     "record": {
       "name": "Mikrofonaufnahme",
-      "description": "Eine kurze Aufnahme direkt vom Satellitenmikrofon speichern, ohne Assist oder Workstation. Danach unter „Zu prüfen“ anhören und freigeben.",
+      "description": "Mikrofonaufnahme am gewählten Gerät starten; erneut aufrufen, um zu stoppen und zu speichern. Lange Aufnahmen werden in Abschnitte geteilt. Unter „Zu prüfen“ anhören und freigeben.",
       "fields": {
         "device": {
           "name": "Gerät",

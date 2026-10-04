@@ -100,5 +100,10 @@ function card(language) {
   await new Promise(resolve => setTimeout(resolve, 350));
   assert.equal(refreshes, 2, 'New recordings refresh without a manual click.');
   de.disconnectedCallback();
+  const quiet = {...items[0], category: 'rejected_quality', quality_reasons: ['too_quiet']};
+  assert.ok(de.row(quiet).includes('Zu leise'));
+  assert.ok(de.row(quiet).includes('data-action="play"'));
+  assert.ok(de.row(quiet).includes('data-action="accept"'));
+  assert.ok(!de.row(quiet).includes('data-action="reject"'));
   console.log('card ok');
 })().catch(error => { console.error(error); process.exitCode = 1; });

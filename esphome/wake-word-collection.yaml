@@ -46,6 +46,7 @@ defaults:
   wake_word_mww_id: mww
   wake_word_media_player_id: external_media_player
   wake_word_max_duration: 8s
+  wake_word_manual_duration: 30s
   wake_word_report_triggers: "false"
   # ESPHome finds the component in esphome/components of the repository.
   wake_word_components: github://ChristophBellmann/ha-wake-word-collector@main
@@ -68,6 +69,10 @@ globals:
     restore_value: no
     initial_value: "false"
   - id: wake_word_record_resume_detection
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: wake_word_command_initialized
     type: bool
     restore_value: no
     initial_value: "false"
@@ -97,6 +102,7 @@ wakeword_recorder:
   token: ${wake_word_token}
   device: ${wake_word_device}
   max_duration: ${wake_word_max_duration}
+  manual_duration: ${wake_word_manual_duration}
 
 text_sensor:
   # "<start|stop>:<target>:<time>"; target "*" means: the satellite that is
@@ -107,6 +113,12 @@ text_sensor:
     internal: true
     on_value:
       - lambda: |-
+          // The first subscription value may be a command from before reboot.
+          // Never start recording merely because HA replays its last state.
+          if (!id(wake_word_command_initialized)) {
+            id(wake_word_command_initialized) = true;
+            return;
+          }
           const size_t first = x.find(':');
           const size_t second = x.find(':', first == std::string::npos ? 0 : first + 1);
           if (first == std::string::npos || second == std::string::npos)
@@ -118,7 +130,10 @@ text_sensor:
           if (!for_me)
             return;
           if (action == "record") {
-            id(wake_word_direct_record).execute();
+            if (id(wake_word_direct_recording))
+              id(wake_word_direct_finish).execute();
+            else
+              id(wake_word_direct_record).execute();
           } else if (action == "start") {
             if (running && target == "*") {
               // Answer the request first, start collecting when this run ends.
@@ -129,21 +144,12 @@ text_sensor:
               id(wake_word_collection_start_now).execute();
             }
           } else if (action == "stop") {
-            id(wake_word_collection_active) = false;
-            id(wake_word_collection_arm_after_end) = false;
-            id(wake_word_collection_stop_after_end) = false;
-            id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
-            id(wake_word_recorder).discard_capture();
-            id(wake_word_direct_record).stop();
-            id(wake_word_recorder).release_microphone();
-            id(wake_word_direct_recording) = false;
-            if (id(wake_word_record_resume_detection)) id(${wake_word_mww_id}).start();
-            id(wake_word_collection_stop_now).execute();
+            id(wake_word_stop).execute();
           }
 
 script:
-  # GUI recording owns the microphone and never sends audio to Assist.
-  # Empty transcripts are kept for manual review, never accepted implicitly.
+  # GUI recording toggles start/save on the satellite, without Assist.
+  # Long sessions are saved in bounded segments, preserving their beginning.
   - id: wake_word_direct_record
     mode: single
     then:
@@ -152,6 +158,7 @@ script:
           id(wake_word_collection_active) = true;
           id(wake_word_collection_arm_after_end) = false;
           id(wake_word_record_resume_detection) = id(${wake_word_mww_id}).is_running();
+      - script.stop: wake_word_trigger_upload_later
       - voice_assistant.stop:
           id: ${wake_word_va_id}
       - wait_until:
@@ -159,13 +166,33 @@ script:
             lambda: return !id(${wake_word_va_id}).is_running();
           timeout: 5s
       - micro_wake_word.stop:
+      - wakeword_recorder.upload: wake_word_recorder
       - wakeword_recorder.discard: wake_word_recorder
       - wakeword_recorder.hold: wake_word_recorder
-      - wakeword_recorder.capture: wake_word_recorder
-      - delay: ${wake_word_max_duration}
+      - lambda: id(wake_word_recorder).start_capture(true);
+      - while:
+          condition:
+            lambda: return id(wake_word_direct_recording);
+          then:
+            - delay: ${wake_word_manual_duration}
+            - if:
+                condition:
+                  lambda: return id(wake_word_direct_recording);
+                then:
+                  - wakeword_recorder.finish:
+                      id: wake_word_recorder
+                      transcript: ""
+                      kind: manual
+                  - wakeword_recorder.upload: wake_word_recorder
+                  - lambda: id(wake_word_recorder).start_capture(true);
+  - id: wake_word_direct_finish
+    mode: single
+    then:
+      - script.stop: wake_word_direct_record
       - wakeword_recorder.finish:
           id: wake_word_recorder
           transcript: ""
+          kind: manual
       - wakeword_recorder.upload: wake_word_recorder
       - wakeword_recorder.release: wake_word_recorder
       - lambda: |-
@@ -173,7 +200,24 @@ script:
           id(wake_word_collection_active) = false;
           id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
           if (id(wake_word_record_resume_detection)) id(${wake_word_mww_id}).start();
+          id(wake_word_record_resume_detection) = false;
       - script.execute: wake_word_trigger_listen
+  - id: wake_word_stop
+    then:
+      - if:
+          condition:
+            lambda: return id(wake_word_direct_recording);
+          then:
+            - script.execute: wake_word_direct_finish
+          else:
+            - lambda: |-
+                id(wake_word_collection_active) = false;
+                id(wake_word_collection_arm_after_end) = false;
+                id(wake_word_collection_stop_after_end) = false;
+                id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
+            - wakeword_recorder.discard: wake_word_recorder
+            - script.execute: wake_word_collection_stop_now
+            - script.execute: wake_word_trigger_listen
   # Keep a ring buffer of the last seconds while not collecting, for trigger reports.
   - id: wake_word_trigger_listen
     then:
@@ -233,19 +277,7 @@ button:
     name: Stop wake word collection
     entity_category: config
     on_press:
-      - lambda: |-
-          id(wake_word_collection_active) = false;
-          id(wake_word_collection_arm_after_end) = false;
-          id(wake_word_collection_stop_after_end) = false;
-          id(${wake_word_va_id}).set_media_player(id(${wake_word_media_player_id}));
-      - script.stop: wake_word_direct_record
-      - wakeword_recorder.release: wake_word_recorder
-      - lambda: |-
-          id(wake_word_direct_recording) = false;
-          if (id(wake_word_record_resume_detection)) id(${wake_word_mww_id}).start();
-      - wakeword_recorder.discard: wake_word_recorder
-      - script.execute: wake_word_collection_stop_now
-      - script.execute: wake_word_trigger_listen
+      - script.execute: wake_word_stop
 
 sensor:
   - platform: template

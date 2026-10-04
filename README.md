@@ -69,10 +69,12 @@ The next step shows the **upload URL**, a **token** and the **command sensor**
 for the satellites. They are shown again under *Configure*.
 
 For a GUI microphone test without Assist or the training computer, call
-`wake_word_collector.record` with the satellite's `device` identifier. It records
-`wake_word_max_duration` (default eight seconds), then restores wake word detection.
+`wake_word_collector.record` with the satellite's `device` identifier. Call once to start, again to stop and save; `wake_word_collector.stop` also saves.
+Recording continues until stopped. Long sessions are split into segments of
+`wake_word_manual_duration` (default 30 seconds, configurable up to 120 seconds),
+preserving the beginning of each segment.
 The clip has no transcript: listen under **To check** and accept it manually.
-`wake_word_collector.stop` cancels it. This requires the matching ESPHome package.
+Quality warnings remain visible and clips wait for manual acceptance. This requires the matching ESPHome package.
 The review card updates when recordings change; optional `recordings_entity` selects
 the statistics sensor and `device_names` maps device identifiers to room names.
 
@@ -309,10 +311,13 @@ Deutsch und Englisch.
 
 ### Direkte Mikrofonaufnahme aus der GUI
 
-Die Aktion `wake_word_collector.record` nimmt auf dem gewählten `device` direkt
-am Mikrofon auf, standardmäßig acht Sekunden (`wake_word_max_duration`). Assist
-und Workstation werden dafür nicht benötigt. Danach die Aufnahme in **Zu prüfen**
-anhören und manuell freigeben. `wake_word_collector.stop` bricht die Aufnahme ab.
+Die Aktion `wake_word_collector.record` startet die Mikrofonaufnahme am gewählten
+`device`; derselbe Aufruf stoppt und speichert sie. `wake_word_collector.stop`
+beendet sie ebenfalls mit Speichern. Assist und Workstation werden nicht benötigt.
+Die Aufnahme läuft bis zum Stopp; längere Sitzungen werden in Abschnitte von
+`wake_word_manual_duration` geteilt (Standard 30 Sekunden, bis 120 konfigurierbar).
+Alle manuellen Aufnahmen bleiben zum Anhören und Freigeben unter **Zu prüfen**,
+auch bei Qualitätswarnungen. **Alle** zeigt zusätzlich verworfene Aufnahmen.
 Dafür muss auch das ESPHome-Paket auf demselben Stand sein.
 
 Die Aufnahmekarte aktualisiert sich bei Änderungen automatisch. Optional wählt

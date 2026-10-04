@@ -15,7 +15,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from . import intents
-from .collect import DECISIONS, REVIEWABLE
+from .collect import CATEGORIES, DECISIONS
 from .collector import Collector
 from .const import AUDIO_URL, CARD_URL, CONF_TRAINER_TOKEN, CONF_TRAINER_URL, DOMAIN
 from .speaker_test import MAX_CLIPS, SpeakerTest
@@ -168,7 +168,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     clip = {
         ENTRY: cv.string,
-        vol.Required("category"): vol.In(REVIEWABLE),
+        vol.Required("category"): vol.In(CATEGORIES),
         vol.Required("device"): cv.string,
         vol.Required("filename"): cv.string,
     }

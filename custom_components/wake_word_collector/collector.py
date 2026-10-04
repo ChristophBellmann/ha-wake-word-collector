@@ -14,7 +14,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store as SettingsStore
 from homeassistant.util import dt as dt_util
 
-from .collect import DEVICE_RE, CollectorError, Phrases, Store
+from .collect import CATEGORIES, DEVICE_RE, CollectorError, Phrases, Store
 from .const import (
     COMMAND_IDLE,
     CONF_CONTROL,
@@ -167,4 +167,4 @@ class Collector:
         return await self._run(self.store.trim, category, device, filename, start_ms, end_ms, mode)
 
     async def async_list(self) -> list[dict]:
-        return await self.hass.async_add_executor_job(self.store.list)
+        return await self.hass.async_add_executor_job(self.store.list, CATEGORIES)

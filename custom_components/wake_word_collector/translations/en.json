@@ -451,7 +451,7 @@
     },
     "record": {
       "name": "Microphone recording",
-      "description": "Save a short recording directly from the satellite microphone, without Assist or the training computer. Listen to it under To check and accept it.",
+      "description": "Start microphone recording on the selected device; call again to stop and save. Long recordings are split into segments. Listen and accept under To check.",
       "fields": {
         "device": {
           "name": "Device",

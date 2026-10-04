@@ -1,5 +1,6 @@
 """The integration in a Home Assistant test instance."""
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -269,3 +270,45 @@ async def test_direct_microphone_recording(hass: HomeAssistant, entry, hass_clie
     response = await upload(client, "", wav_bytes(speech(1.5)), device="office")
     assert response.status == 201
     assert (await response.json())["records"][0]["category"] == "needs_review"
+
+
+async def test_fragmented_satellite_upload(hass: HomeAssistant, entry, hass_client_no_auth, hass_client) -> None:
+    client = await hass_client_no_auth()
+    body = wav_bytes(speech(8))
+
+    async def fragments():
+        for offset in range(0, len(body), 2048):
+            yield body[offset : offset + 2048]
+            await asyncio.sleep(0.001)
+
+    response = await client.post(
+        "/api/wake_word_collector/clips/hey_nova",
+        data=fragments(),
+        headers={"X-Wakeword-Token": TOKEN, "X-Wakeword-Device": "office", "X-Wakeword-Kind": "manual"},
+    )
+    assert response.status == 201
+    record = (await response.json())["records"][0]
+    assert record["duration_ms"] == 8000 and record["category"] == "needs_review"
+    response = await (await hass_client()).get(
+        f"/api/wake_word_collector/audio/{entry.entry_id}/needs_review/office/{record['filename']}"
+    )
+    assert response.status == 200
+    assert await response.read() == body
+
+
+async def test_long_manual_recording_and_quality_visibility(hass: HomeAssistant, entry, hass_client_no_auth) -> None:
+    client = await hass_client_no_auth()
+    response = await client.post(
+        "/api/wake_word_collector/clips/hey_nova",
+        data=wav_bytes(silence(20)),
+        headers={"X-Wakeword-Token": TOKEN, "X-Wakeword-Device": "office", "X-Wakeword-Kind": "manual"},
+    )
+    assert response.status == 201
+    record = (await response.json())["records"][0]
+    assert record["category"] == "needs_review" and record["duration_ms"] == 20000
+    assert record["quality_reasons"] == ["too_quiet"]
+    collector = entry.runtime_data
+    assert any(item["filename"] == record["filename"] for item in await collector.async_list())
+    await collector.async_review("needs_review", "office", record["filename"], "reject")
+    assert any(item["category"] == "rejected_quality" for item in await collector.async_list())
+    await collector.async_review("rejected_quality", "office", record["filename"], "accept")

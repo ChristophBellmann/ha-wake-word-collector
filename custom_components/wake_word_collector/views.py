@@ -63,9 +63,15 @@ class UploadView(HomeAssistantView):
             return self.json_message("authentication failed", 401)
         if request.content_length is not None and request.content_length > MAX_BODY_BYTES:
             return self.json_message("too large", 413)
-        body = await request.content.read(MAX_BODY_BYTES + 1)
-        if len(body) > MAX_BODY_BYTES:
-            return self.json_message("too large", 413)
+        # StreamReader.read(n) may return the first available fragment only.
+        # A satellite sends the WAV over many packets; read through EOF while
+        # keeping chunked requests bounded as well as Content-Length requests.
+        body = bytearray()
+        while chunk := await request.content.read(65536):
+            body.extend(chunk)
+            if len(body) > MAX_BODY_BYTES:
+                return self.json_message("too large", 413)
+        body = bytes(body)
         device = request.headers.get("X-Wakeword-Device", "")
         transcript = _header_text(request.headers.get("X-Wakeword-Transcript", "")).strip()
         kind = request.headers.get("X-Wakeword-Kind", "utterance").strip().lower() or "utterance"

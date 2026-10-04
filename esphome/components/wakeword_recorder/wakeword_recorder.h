@@ -29,6 +29,7 @@ class WakewordRecorder : public Component {
   void set_token(const std::string &token) { this->token_ = token; }
   void set_device(const std::string &device) { this->device_ = device; }
   void set_max_duration_ms(uint32_t duration_ms) { this->max_duration_ms_ = duration_ms; }
+  void set_manual_duration_ms(uint32_t duration_ms) { this->manual_duration_ms_ = duration_ms; }
 
   /// Hold the microphone. Without it the ring buffer only receives audio
   /// while someone else keeps the microphone running.
@@ -53,7 +54,7 @@ class WakewordRecorder : public Component {
   /// answer in the middle of a running capture.
   void reset_speech();
 
-  bool start_capture();
+  bool start_capture(bool manual = false);
   /// kind: empty or "utterance" for a spoken example, "trigger" for the audio
   /// right before the wake word engine fired (sent as X-Wakeword-Kind).
   bool finish_capture(const std::string &transcript, const std::string &kind = "");
@@ -73,6 +74,9 @@ class WakewordRecorder : public Component {
   std::string token_;
   std::string device_;
   uint32_t max_duration_ms_{8000};
+  uint32_t manual_duration_ms_{30000};
+  uint32_t capture_duration_ms_{8000};
+  bool manual_capture_{false};
   uint32_t source_rate_{16000};
   uint32_t decimation_{1};
   uint32_t source_sample_index_{0};

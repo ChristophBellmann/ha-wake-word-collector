@@ -8,6 +8,8 @@ const I18N = {
     empty: 'No recordings in this view.', all: 'All', review: 'To check', candidates: 'Usable',
     usable: '{n} usable', to_check: '{n} to check', total: '{n} in total',
     cat_candidates: 'usable', cat_needs_review: 'to check', cat_rejected_transcript: 'to check',
+    cat_rejected_quality: 'quality warning / rejected', rejected: 'Quality / rejected',
+    too_quiet: 'Too quiet', clipping: 'Clipping', dc_offset: 'DC offset',
     cat_triggers: 'activation', cat_negatives: 'not the wake word', cat_control: 'command',
     negatives: 'Not the wake word', triggers: 'Activations', triggers_count: '{n} activations to judge',
     negative: 'Not the wake word', false_alarm: 'False alarm', was_wake_word: 'Was the wake word',
@@ -22,6 +24,8 @@ const I18N = {
     empty: 'Keine Aufnahmen in dieser Ansicht.', all: 'Alle', review: 'Zu prüfen', candidates: 'Verwendbar',
     usable: '{n} verwendbar', to_check: '{n} zu prüfen', total: '{n} insgesamt',
     cat_candidates: 'verwendbar', cat_needs_review: 'zu prüfen', cat_rejected_transcript: 'zu prüfen',
+    cat_rejected_quality: 'Qualitätswarnung / verworfen', rejected: 'Qualität / verworfen',
+    too_quiet: 'Zu leise', clipping: 'Übersteuert', dc_offset: 'Gleichspannungsanteil',
     cat_triggers: 'Auslösung', cat_negatives: 'kein Aktivierungswort', cat_control: 'Befehl',
     negatives: 'Kein Aktivierungswort', triggers: 'Auslösungen', triggers_count: '{n} Auslösungen zu bewerten',
     negative: 'Kein Aktivierungswort', false_alarm: 'Fehlalarm', was_wake_word: 'War das Aktivierungswort',
@@ -93,6 +97,7 @@ class WakeWordCollectorCard extends HTMLElement {
     const groups = {
       review: ['needs_review', 'rejected_transcript', 'triggers'],
       candidates: ['candidates'],
+      rejected: ['rejected_quality'],
       triggers: ['triggers'],
       negatives: ['negatives', 'control'],
     };
@@ -221,11 +226,12 @@ class WakeWordCollectorCard extends HTMLElement {
       <div class="head"><strong>${escapeHtml(when)}</strong><span class="badge">${escapeHtml(this.t('cat_' + item.category))}</span></div>
       <div class="muted">${escapeHtml((this.config?.device_names?.[item.device] || item.device) + length)}</div>
       ${item.transcript ? `<div class="transcript">${escapeHtml(this.t('heard', {text: item.transcript}))}</div>` : ''}
+      ${(item.quality_reasons || []).length ? `<div class="notice">${escapeHtml(item.quality_reasons.map(reason => this.t(reason)).join(' · '))}</div>` : ''}
       ${item.note ? `<div class="muted">${escapeHtml(item.note)}</div>` : ''}
       <div class="actions"><button data-action="play">${escapeHtml(this.t('play'))}</button>
       ${item.category !== 'candidates' ? `<button data-action="accept" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'was_wake_word' : 'accept'))}</button>` : ''}
       ${item.category !== 'negatives' ? `<button data-action="negative" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'false_alarm' : 'negative'))}</button>` : ''}
-      <button data-action="reject" class="danger" ${disabled}>${escapeHtml(this.t('reject'))}</button>
+      ${item.category !== 'rejected_quality' ? `<button data-action="reject" class="danger" ${disabled}>${escapeHtml(this.t('reject'))}</button>` : ''}
       <button data-action="edit">${escapeHtml(this.t(editing ? 'close' : 'edit'))}</button></div>
       ${editing ? this.editor() : ''}</div>`;
   }
@@ -252,7 +258,7 @@ class WakeWordCollectorCard extends HTMLElement {
     this.shadowRoot.innerHTML = `${style}<ha-card>
       <h2>${escapeHtml(this.config?.title || `${this.t('title')}: ${collector.title}`)}</h2>
       <div class="muted">${escapeHtml(summary)}</div>
-      <div class="toolbar"><select data-filter>${['all', 'review', 'candidates', 'triggers', 'negatives'].map(f => `<option value="${f}" ${f === this.filter ? 'selected' : ''}>${escapeHtml(this.t(f))}</option>`).join('')}</select>
+      <div class="toolbar"><select data-filter>${['all', 'review', 'candidates', 'triggers', 'negatives', 'rejected'].map(f => `<option value="${f}" ${f === this.filter ? 'selected' : ''}>${escapeHtml(this.t(f))}</option>`).join('')}</select>
       <button data-action="refresh">${escapeHtml(this.t('refresh'))}</button></div>
       ${this.message ? `<div class="notice" role="status">${escapeHtml(this.message)}</div>` : ''}
       ${items.length ? items.slice(0, this.limit).map(item => this.row(item)).join('') : `<p class="muted">${escapeHtml(this.t('empty'))}</p>`}
@@ -272,7 +278,7 @@ class WakeWordCollectorCard extends HTMLElement {
       row.querySelector('[data-action="play"]').onclick = () => this.play(item);
       row.querySelector('[data-action="accept"]')?.addEventListener('click', () => this.review(item, 'accept'));
       row.querySelector('[data-action="negative"]')?.addEventListener('click', () => this.review(item, 'negative'));
-      row.querySelector('[data-action="reject"]').onclick = () => this.review(item, 'reject');
+      row.querySelector('[data-action="reject"]')?.addEventListener('click', () => this.review(item, 'reject'));
       row.querySelector('[data-action="edit"]').onclick = () => this.edit(item).catch(error => { this.message = error.message || String(error); this.render(); });
       row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => this.playSelection().catch(error => { this.message = error.message || String(error); this.render(); }));
       row.querySelectorAll('[data-trim]').forEach(button => { button.onclick = () => this.trim(button.dataset.trim); });

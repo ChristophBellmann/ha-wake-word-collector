@@ -51,7 +51,7 @@ TRIGGER_SECONDS = 3.0
 
 MAX_BODY_BYTES = 4 * 1024 * 1024
 MIN_MS = 500
-MAX_MS = 15000
+MAX_MS = 120000
 DEVICE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 FILENAME_RE = re.compile(r"^ha_[a-z0-9][a-z0-9_-]{0,63}_[0-9]{8}T[0-9]{6}_[a-f0-9]{12}\.wav$")
 SAMPLE_RATES = (16000, 48000)
@@ -285,7 +285,7 @@ class Store:
         with (self.root / name).open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
-    def _path(self, category: str, device: str, filename: str, categories=REVIEWABLE) -> Path:
+    def _path(self, category: str, device: str, filename: str, categories=CATEGORIES) -> Path:
         if not DEVICE_RE.fullmatch(device) or not FILENAME_RE.fullmatch(filename):
             raise CollectorError("invalid_clip")
         if category not in categories:
@@ -346,7 +346,7 @@ class Store:
         kind "trigger": the seconds before the satellite's wake word engine fired.
         It is kept as it is (also when quiet: a false activation by a quiet noise
         is exactly what the model must learn) and waits for a decision."""
-        if kind not in ("utterance", "trigger"):
+        if kind not in ("utterance", "trigger", "manual"):
             raise CollectorError("invalid_kind")
         device = device.lower()
         if not DEVICE_RE.fullmatch(device):
@@ -368,6 +368,8 @@ class Store:
             meta = analyse(temp_path)
             if kind == "trigger":
                 category = TRIGGERS
+            elif kind == "manual":
+                category = NEEDS_REVIEW
             else:
                 category = self.phrases.classify(transcript)
                 if meta["quality_reasons"]:
@@ -503,6 +505,7 @@ class Store:
                         "transcript": record.get("transcript", ""),
                         "duration_ms": record.get("duration_ms"),
                         "rms_dbfs": record.get("rms_dbfs"),
+                        "quality_reasons": record.get("quality_reasons", []),
                         "repetition_count": record.get("repetition_count", 0),
                         "note": record.get("note", ""),
                     }
