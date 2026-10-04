@@ -29,7 +29,7 @@ import tempfile
 import unicodedata
 import wave
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -482,6 +482,7 @@ class Store:
             "triggers": counts[TRIGGERS],
             "total": sum(counts.values()),
             "candidates_by_device": by_device,
+            "recordings_revision": self.manifest.stat().st_mtime_ns if self.manifest.exists() else 0,
             "devices": sorted(devices),
             "latest_recording_at": datetime.fromtimestamp(latest, UTC).isoformat() if latest else None,
         }
@@ -508,12 +509,98 @@ class Store:
                         "quality_reasons": record.get("quality_reasons", []),
                         "repetition_count": record.get("repetition_count", 0),
                         "note": record.get("note", ""),
+                        "kind": record.get("kind", ""),
+                        "extracted_from": record.get("extracted_from"),
+                        "extraction_state": record.get("extraction_state", ""),
+                        "extraction_error": record.get("extraction_error", ""),
+                        "extraction_count": len(record.get("extraction_clips", [])),
                     }
                 )
         return sorted(items, key=lambda item: item["created_at"], reverse=True)
 
     def audio(self, category: str, device: str, filename: str) -> Path:
         return self._path(category, device, filename, CATEGORIES)
+
+    def extraction_snapshot(self, category: str, device: str, filename: str) -> tuple[bytes, str]:
+        body = self._path(category, device, filename).read_bytes()
+        return body, hashlib.sha256(body).hexdigest()
+
+    def extraction_status(self, device: str, filename: str, state: str, error: str = "") -> None:
+        self._update_record(device, filename, {"extraction_state": state, "extraction_error": error})
+
+    def extract_phrases(self, category: str, device: str, filename: str, sha256: str, segments: list[dict]) -> dict:
+        """Copy recognized phrases into review clips; preserve original bytes, deduplicate retries."""
+        path = self._path(category, device, filename)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != sha256:
+            raise CollectorError("extraction_changed")
+        original = self.records().get((device, filename), {})
+        if original.get("extraction_sha256") == sha256 and original.get("extraction_clips"):
+            return {"clips": original["extraction_clips"], "count": len(original["extraction_clips"])}
+        params, frames = read_wav(path)
+        duration = len(frames) * 500 / params.framerate
+        if not isinstance(segments, list) or len(segments) > 256:
+            raise CollectorError("extraction_invalid")
+        previous = 0
+        for segment in segments:
+            if not isinstance(segment, dict):
+                raise CollectorError("extraction_invalid")
+            start, end = segment.get("start_ms"), segment.get("end_ms")
+            if (
+                type(start) is not int
+                or type(end) is not int
+                or not previous <= start < end <= duration
+                or not 500 <= end - start <= 5000
+                or not isinstance(segment.get("phrase"), str)
+                or self.phrases.repetitions(segment["phrase"]) != 1
+            ):
+                raise CollectorError("extraction_invalid")
+            previous = end
+        clips = []
+        incoming = self.root / ".incoming"
+        incoming.mkdir(parents=True, exist_ok=True)
+        for segment in segments:
+            start, end = _window(params, frames, segment["start_ms"], segment["end_ms"])
+            with tempfile.NamedTemporaryFile(dir=incoming, suffix=".wav", delete=False) as tmp:
+                part = Path(tmp.name)
+            try:
+                write_wav(part, params, frames[start * 2 : end * 2])
+                meta = analyse(part)
+                timestamp = utc_now()
+                # A very short source may itself be the whole recognized phrase.
+                # Do not reuse its filename and overwrite its manifest metadata.
+                part_sha = hashlib.sha256(part.read_bytes()).hexdigest()
+                if filename == f"ha_{device}_{timestamp:%Y%m%dT%H%M%S}_{part_sha[:12]}.wav":
+                    timestamp += timedelta(seconds=1)
+                name, clip_sha = self._stage(part, NEEDS_REVIEW, device, timestamp)
+                record = {
+                    "created_at": timestamp.isoformat(),
+                    "category": NEEDS_REVIEW,
+                    "device": device,
+                    "filename": name,
+                    "sha256": clip_sha,
+                    "kind": "extracted",
+                    "transcript": segment["phrase"],
+                    "extracted_from": filename,
+                    "source_upload_sha256": sha256,
+                    "extract_start_ms": segment["start_ms"],
+                    "extract_end_ms": segment["end_ms"],
+                    **meta,
+                }
+                self._append("manifest.jsonl", record)
+                clips.append(name)
+            finally:
+                part.unlink(missing_ok=True)
+        self._update_record(
+            device,
+            filename,
+            {
+                "extraction_sha256": sha256,
+                "extraction_clips": clips,
+                "extraction_state": "done" if clips else "no_matches",
+                "extraction_error": "",
+            },
+        )
+        return {"clips": clips, "count": len(clips)}
 
     # Review -------------------------------------------------------------------
 

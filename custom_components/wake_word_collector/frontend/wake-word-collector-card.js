@@ -4,6 +4,10 @@
 (() => {
 const I18N = {
   en: {
+    extract_words: 'Extract wake words', auto_extract: 'Automatically extract new microphone recordings',
+    extraction_pending: 'Waiting for extraction', extraction_running: 'Recognizing and cutting wake words …',
+    extraction_done: '{n} clips extracted — original kept', extraction_no_matches: 'No wake words recognized. Original kept; you can edit or retry.',
+    extraction_interrupted: 'Extraction interrupted; retry', extracted_clip: 'Extracted clip — listen and accept',
     title: 'Wake word recordings', loading: 'Loading recordings …', none: 'Wake Word Collector is not set up.',
     empty: 'No recordings in this view.', all: 'All', review: 'To check', candidates: 'Usable',
     usable: '{n} usable', to_check: '{n} to check', total: '{n} in total',
@@ -20,6 +24,10 @@ const I18N = {
     min_length: 'At least 0.5 s must remain.', done: 'Done.', heard: 'Heard: “{text}”', refresh: 'Refresh',
   },
   de: {
+    extract_words: 'Aktivierungswörter ausschneiden', auto_extract: 'Neue Mikrofonaufnahmen automatisch schneiden',
+    extraction_pending: 'Wartet auf den Schnitt', extraction_running: 'Aktivierungswörter werden erkannt und geschnitten …',
+    extraction_done: '{n} Clips ausgeschnitten — Original behalten', extraction_no_matches: 'Kein Aktivierungswort erkannt. Original behalten; Bearbeiten oder erneut versuchen.',
+    extraction_interrupted: 'Schnitt unterbrochen; erneut versuchen', extracted_clip: 'Ausschnitt — anhören und freigeben',
     title: 'Wakeword-Aufnahmen', loading: 'Aufnahmen werden geladen …', none: 'Wake Word Collector ist nicht eingerichtet.',
     empty: 'Keine Aufnahmen in dieser Ansicht.', all: 'Alle', review: 'Zu prüfen', candidates: 'Verwendbar',
     usable: '{n} verwendbar', to_check: '{n} zu prüfen', total: '{n} insgesamt',
@@ -227,11 +235,15 @@ class WakeWordCollectorCard extends HTMLElement {
       <div class="muted">${escapeHtml((this.config?.device_names?.[item.device] || item.device) + length)}</div>
       ${item.transcript ? `<div class="transcript">${escapeHtml(this.t('heard', {text: item.transcript}))}</div>` : ''}
       ${(item.quality_reasons || []).length ? `<div class="notice">${escapeHtml(item.quality_reasons.map(reason => this.t(reason)).join(' · '))}</div>` : ''}
+      ${item.extracted_from ? `<div class="muted">${escapeHtml(this.t('extracted_clip'))}</div>` : ''}
+      ${item.extraction_state && item.extraction_state !== 'error' ? `<div class="notice">${escapeHtml(this.t('extraction_' + item.extraction_state, {n: item.extraction_count || 0}))}</div>` : ''}
+      ${item.extraction_error ? `<div class="notice" role="alert">${escapeHtml(item.extraction_error)}</div>` : ''}
       ${item.note ? `<div class="muted">${escapeHtml(item.note)}</div>` : ''}
       <div class="actions"><button data-action="play">${escapeHtml(this.t('play'))}</button>
       ${item.category !== 'candidates' ? `<button data-action="accept" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'was_wake_word' : 'accept'))}</button>` : ''}
       ${item.category !== 'negatives' ? `<button data-action="negative" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'false_alarm' : 'negative'))}</button>` : ''}
       ${item.category !== 'rejected_quality' ? `<button data-action="reject" class="danger" ${disabled}>${escapeHtml(this.t('reject'))}</button>` : ''}
+      ${this.collector()?.has_trainer && item.kind === 'manual' ? `<button data-action="extract" ${disabled} ${['pending', 'running'].includes(item.extraction_state) ? 'disabled' : ''}>${escapeHtml(this.t('extract_words'))}</button>` : ''}
       <button data-action="edit">${escapeHtml(this.t(editing ? 'close' : 'edit'))}</button></div>
       ${editing ? this.editor() : ''}</div>`;
   }
@@ -260,6 +272,7 @@ class WakeWordCollectorCard extends HTMLElement {
       <div class="muted">${escapeHtml(summary)}</div>
       <div class="toolbar"><select data-filter>${['all', 'review', 'candidates', 'triggers', 'negatives', 'rejected'].map(f => `<option value="${f}" ${f === this.filter ? 'selected' : ''}>${escapeHtml(this.t(f))}</option>`).join('')}</select>
       <button data-action="refresh">${escapeHtml(this.t('refresh'))}</button></div>
+      ${collector.has_trainer ? `<label><input type="checkbox" data-auto-extract ${collector.auto_extract !== false ? 'checked' : ''} ${this.busy ? 'disabled' : ''}> ${escapeHtml(this.t('auto_extract'))}</label>` : ''}
       ${this.message ? `<div class="notice" role="status">${escapeHtml(this.message)}</div>` : ''}
       ${items.length ? items.slice(0, this.limit).map(item => this.row(item)).join('') : `<p class="muted">${escapeHtml(this.t('empty'))}</p>`}
       ${items.length > this.limit ? `<button data-action="more">${escapeHtml(this.t('more'))}</button>` : ''}
@@ -270,6 +283,7 @@ class WakeWordCollectorCard extends HTMLElement {
     const root = this.shadowRoot, byKey = new Map(items.map(item => [this.key(item), item]));
     root.querySelector('[data-filter]').onchange = event => { this.filter = event.target.value; this.limit = 30; this.render(); };
     root.querySelector('[data-action="refresh"]').onclick = () => this.load();
+    root.querySelector('[data-auto-extract]')?.addEventListener('change', event => this.service('auto_extract', {enabled: event.target.checked}));
     const more = root.querySelector('[data-action="more"]');
     if (more) more.onclick = () => { this.limit += 30; this.render(); };
     root.querySelectorAll('.item').forEach(row => {
@@ -279,6 +293,7 @@ class WakeWordCollectorCard extends HTMLElement {
       row.querySelector('[data-action="accept"]')?.addEventListener('click', () => this.review(item, 'accept'));
       row.querySelector('[data-action="negative"]')?.addEventListener('click', () => this.review(item, 'negative'));
       row.querySelector('[data-action="reject"]')?.addEventListener('click', () => this.review(item, 'reject'));
+      row.querySelector('[data-action="extract"]')?.addEventListener('click', () => this.service('extract', {category: item.category, device: item.device, filename: item.filename}));
       row.querySelector('[data-action="edit"]').onclick = () => this.edit(item).catch(error => { this.message = error.message || String(error); this.render(); });
       row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => this.playSelection().catch(error => { this.message = error.message || String(error); this.render(); }));
       row.querySelectorAll('[data-trim]').forEach(button => { button.onclick = () => this.trim(button.dataset.trim); });

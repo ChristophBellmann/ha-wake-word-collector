@@ -105,5 +105,14 @@ function card(language) {
   assert.ok(de.row(quiet).includes('data-action="play"'));
   assert.ok(de.row(quiet).includes('data-action="accept"'));
   assert.ok(!de.row(quiet).includes('data-action="reject"'));
+  const c = de.collector(); c.has_trainer = true; c.auto_extract = true;
+  const manual = {...items[0], kind: 'manual', extraction_state: 'done', extraction_count: 3};
+  assert.ok(de.row(manual).includes('Aktivierungswörter ausschneiden'));
+  assert.ok(de.row(manual).includes('3 Clips ausgeschnitten'));
+  c.items = [manual]; de.filter = 'all'; de.render();
+  assert.ok(de.shadowRoot.innerHTML.includes('data-auto-extract checked'));
+  assert.ok(de.row({...manual, extraction_state: 'error', extraction_error: '<offline>'}).includes('&lt;offline&gt;'));
+  await de.service('extract', {category: manual.category, device: manual.device, filename: manual.filename});
+  assert.equal(calls.at(-1)[1], 'extract');
   console.log('card ok');
 })().catch(error => { console.error(error); process.exitCode = 1; });

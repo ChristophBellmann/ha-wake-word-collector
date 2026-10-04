@@ -70,7 +70,7 @@ trim:
       selector:
         number:
           min: 0
-          max: 60000
+          max: 120000
           unit_of_measurement: ms
           mode: box
     end_ms:
@@ -78,7 +78,7 @@ trim:
       selector:
         number:
           min: 0
-          max: 60000
+          max: 120000
           unit_of_measurement: ms
           mode: box
     mode:
@@ -161,3 +161,33 @@ import:
     note:
       selector:
         text:
+
+extract:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: wake_word_collector
+    category:
+      required: true
+      selector:
+        select:
+          options: [candidates, needs_review, rejected_transcript, rejected_quality, triggers, control, negatives]
+    device:
+      required: true
+      selector:
+        text:
+    filename:
+      required: true
+      selector:
+        text:
+auto_extract:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: wake_word_collector
+    enabled:
+      required: true
+      selector:
+        boolean:

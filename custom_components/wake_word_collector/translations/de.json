@@ -220,6 +220,18 @@
     },
     "speaker_test_no_route": {
       "message": "Der Trainer-Dienst hat keinen Lautsprecher-Ausgang (speaker_test.routes)."
+    },
+    "extraction_update_trainer": {
+      "message": "Den Workstation-Trainer für den automatischen Schnitt aktualisieren."
+    },
+    "extraction_unavailable": {
+      "message": "Schnitt nicht verfügbar: extraction aktivieren und das segment-Extra auf der Workstation installieren oder später erneut versuchen."
+    },
+    "extraction_invalid": {
+      "message": "Der Trainer hat ungültige Schnittgrenzen geliefert."
+    },
+    "extraction_changed": {
+      "message": "Die Originalaufnahme wurde während der Erkennung verändert. Bitte erneut versuchen."
     }
   },
   "services": {
@@ -460,6 +472,37 @@
         "config_entry_id": {
           "name": "Aktivierungswort-Eintrag",
           "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        }
+      }
+    },
+    "extract": {
+      "name": "Aktivierungswörter ausschneiden",
+      "description": "Kopiert erkannte Aktivierungswörter in einzelne Aufnahmen zur Prüfung. Das Original bleibt erhalten.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Aktivierungswort-Eintrag",
+          "description": "Nur nötig, wenn mehrere Aktivierungswörter eingerichtet sind."
+        },
+        "category": {
+          "name": "Kategorie",
+          "description": "candidates, needs_review oder rejected_transcript."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename der Aufnahme."
+        },
+        "filename": {
+          "name": "Dateiname",
+          "description": "Dateiname der Aufnahme."
+        }
+      }
+    },
+    "auto_extract": {
+      "name": "Automatischer Schnitt",
+      "description": "Neue Mikrofonaufnahmen automatisch schneiden.",
+      "fields": {
+        "enabled": {
+          "name": "Aktiviert"
         }
       }
     }

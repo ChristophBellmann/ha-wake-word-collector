@@ -3,7 +3,9 @@ satellites listen to."""
 
 from __future__ import annotations
 
+import asyncio
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +59,9 @@ class Collector:
         # choices, and which ESPHome node each recording device is.
         self._settings_store = SettingsStore(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self.settings: dict[str, Any] = {}
+        self._storage_lock = threading.RLock()
+        self._extraction_lock = asyncio.Lock()
+        self._extraction_tasks: set[asyncio.Task] = set()
 
     @property
     def slug(self) -> str:
@@ -87,6 +92,10 @@ class Collector:
         self.notify()
 
     async def async_unload(self) -> None:
+        for task in self._extraction_tasks:
+            task.cancel()
+        if self._extraction_tasks:
+            await asyncio.gather(*self._extraction_tasks, return_exceptions=True)
         if self.settings:
             await self._settings_store.async_save(self.settings)
 
@@ -106,7 +115,7 @@ class Collector:
         return self.settings.get("nodes", {}).get(device)
 
     async def async_refresh(self) -> None:
-        self.stats = await self.hass.async_add_executor_job(self.store.stats)
+        self.stats = await self.hass.async_add_executor_job(self._store_call, self.store.stats)
         self.notify()
 
     @callback
@@ -121,9 +130,57 @@ class Collector:
         self.command = f"{action}:{target}:{dt_util.utcnow().isoformat()}"
         self.notify()
 
+    def _store_call(self, func, *args):
+        with self._storage_lock:
+            return func(*args)
+
+    @property
+    def auto_extract(self) -> bool:
+        return self.settings.get("auto_extract", True)
+
+    async def async_resume_extractions(self) -> None:
+        if self.trainer is None or not self.auto_extract:
+            return
+        for record in await self.async_list():
+            if record.get("kind") == "manual" and record.get("extraction_state") in (
+                "pending",
+                "running",
+                "interrupted",
+            ):
+                self._queue_extraction(record)
+
+    def _queue_extraction(self, record: dict) -> None:
+        task = self.hass.async_create_background_task(self._automatic_extract(record), "wake word extraction")
+        self._extraction_tasks.add(task)
+        task.add_done_callback(self._extraction_tasks.discard)
+
+    async def _automatic_extract(self, record: dict) -> None:
+        try:
+            await self.async_extract(record["category"], record["device"], record["filename"])
+        except HomeAssistantError:
+            # The original is already saved. The error is visible on its card;
+            # the user can retry once the workstation is available.
+            pass
+
+    async def async_extract(self, category: str, device: str, filename: str) -> dict:
+        async with self._extraction_lock:
+            await self._run(self.store.extraction_status, device, filename, "running")
+            try:
+                if self.trainer is None:
+                    raise HomeAssistantError(translation_domain=DOMAIN, translation_key="no_trainer")
+                body, sha = await self._run(self.store.extraction_snapshot, category, device, filename)
+                result = await self.trainer.client.extract(body, [" ".join(p) for p in self.phrases.accepted])
+                return await self._run(self.store.extract_phrases, category, device, filename, sha, result["segments"])
+            except HomeAssistantError as err:
+                await self._run(self.store.extraction_status, device, filename, "error", str(err))
+                raise
+            except asyncio.CancelledError:
+                await self._run(self.store.extraction_status, device, filename, "interrupted")
+                raise
+
     async def _run(self, func, *args):
         try:
-            result = await self.hass.async_add_executor_job(func, *args)
+            result = await self.hass.async_add_executor_job(self._store_call, func, *args)
         except CollectorError as err:
             raise raise_translated(err) from err
         await self.async_refresh()
@@ -139,6 +196,10 @@ class Collector:
             # Played back by the loudspeaker test: an evaluation clip, not a new example.
             return []
         records = await self._run(self.store.add, device, transcript, body, kind)
+        if kind == "manual" and self.auto_extract and self.trainer is not None:
+            for record in records:
+                await self._run(self.store.extraction_status, device, record["filename"], "pending")
+                self._queue_extraction(record)
         self.last_upload = records[-1]
         self.notify()
         return records
@@ -167,4 +228,4 @@ class Collector:
         return await self._run(self.store.trim, category, device, filename, start_ms, end_ms, mode)
 
     async def async_list(self) -> list[dict]:
-        return await self.hass.async_add_executor_job(self.store.list, CATEGORIES)
+        return await self.hass.async_add_executor_job(self._store_call, self.store.list, CATEGORIES)

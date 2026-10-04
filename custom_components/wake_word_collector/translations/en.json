@@ -220,6 +220,18 @@
     },
     "speaker_test_no_route": {
       "message": "The trainer service has no loudspeaker route (speaker_test.routes)."
+    },
+    "extraction_update_trainer": {
+      "message": "Update the workstation trainer for automatic extraction."
+    },
+    "extraction_unavailable": {
+      "message": "Extraction unavailable: enable extraction and install the segment extra on the workstation, or retry when idle."
+    },
+    "extraction_invalid": {
+      "message": "The trainer returned invalid clip boundaries."
+    },
+    "extraction_changed": {
+      "message": "The original changed during recognition. Please retry."
     }
   },
   "services": {
@@ -460,6 +472,37 @@
         "config_entry_id": {
           "name": "Wake word entry",
           "description": "Only needed if several wake words are set up."
+        }
+      }
+    },
+    "extract": {
+      "name": "Extract wake words",
+      "description": "Copies recognized wake words into individual review clips. Keeps the original.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wake word entry",
+          "description": "Only needed if several wake words are set up."
+        },
+        "category": {
+          "name": "Category",
+          "description": "candidates, needs_review or rejected_transcript."
+        },
+        "device": {
+          "name": "Device",
+          "description": "Device name of the recording."
+        },
+        "filename": {
+          "name": "File name",
+          "description": "File name of the recording."
+        }
+      }
+    },
+    "auto_extract": {
+      "name": "Automatic extraction",
+      "description": "Automatically extract new microphone recordings.",
+      "fields": {
+        "enabled": {
+          "name": "Enabled"
         }
       }
     }

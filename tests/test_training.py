@@ -290,3 +290,56 @@ async def test_import_folder(hass: HomeAssistant, entry, tmp_path: Path) -> None
     assert len(files) == 3 and all(name.startswith("ha_earlier_") for name in files)
     assert {item["note"] for item in store.list(("candidates",))} == {"lab"}
     shutil.rmtree(source)
+
+
+async def test_automatic_extraction_keeps_original_and_only_exports_reviewed_cuts(hass, trained, aioclient_mock):
+    import asyncio
+
+    entry, _events, _tmp_path = trained
+    collector = entry.runtime_data
+    segments = [
+        {"start_ms": 800, "end_ms": 2000, "phrase": "hey nova"},
+        {"start_ms": 6000, "end_ms": 7500, "phrase": "hey nova"},
+    ]
+    aioclient_mock.post(f"{TRAINER}/v1/extract", json={"segments": segments})
+    body = wav_bytes(speech(30))
+    [source] = await collector.async_add("office", "", body, "manual")
+    await asyncio.gather(*list(collector._extraction_tasks))
+    items = await collector.async_list()
+    cuts = [i for i in items if i.get("extracted_from") == source["filename"]]
+    assert len(cuts) == 2 and all(i["category"] == "needs_review" for i in cuts)
+    assert collector.store.audio("needs_review", "office", source["filename"]).read_bytes() == body
+    source_item = next(i for i in items if i["filename"] == source["filename"])
+    assert source_item["extraction_state"] == "done" and source_item["extraction_count"] == 2
+    result = await hass.services.async_call(
+        DOMAIN,
+        "extract",
+        {
+            "category": "needs_review",
+            "device": "office",
+            "filename": source["filename"],
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert result["count"] == 2 and len(await collector.async_list()) == len(items)
+    assert aioclient_mock.mock_calls[-1][3]["X-Wakeword-Phrases"] == '["hey nova"]'
+    await hass.services.async_call(DOMAIN, "auto_extract", {"enabled": False}, blocking=True)
+    before = len(aioclient_mock.mock_calls)
+    await collector.async_add("office", "", wav_bytes(speech(3)), "manual")
+    await hass.async_block_till_done()
+    assert len(aioclient_mock.mock_calls) == before and not collector.auto_extract
+
+
+async def test_extraction_unavailable_is_visible_and_original_is_playable(hass, trained, aioclient_mock):
+    import asyncio
+
+    entry, _events, _tmp_path = trained
+    collector = entry.runtime_data
+    aioclient_mock.post(f"{TRAINER}/v1/extract", status=404, json={})
+    body = wav_bytes(speech(30))
+    [source] = await collector.async_add("office", "", body, "manual")
+    await asyncio.gather(*list(collector._extraction_tasks))
+    item = next(i for i in await collector.async_list() if i["filename"] == source["filename"])
+    assert item["extraction_state"] == "error" and item["extraction_error"]
+    assert collector.store.audio("needs_review", "office", source["filename"]).read_bytes() == body

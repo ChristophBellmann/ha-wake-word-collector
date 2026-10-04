@@ -74,6 +74,29 @@ class TrainerClient:
     async def speaker_test(self, route: str) -> dict[str, Any]:
         return await self._json("POST", "/v1/speaker_test", {"route": route}, aiohttp.ClientTimeout(total=45))
 
+    async def extract(self, body: bytes, phrases: list[str]) -> dict[str, Any]:
+        try:
+            async with self.session.post(
+                self.url + "/v1/extract",
+                data=body,
+                headers={
+                    **self.headers,
+                    "Content-Type": "audio/wav",
+                    "X-Wakeword-Phrases": json.dumps(phrases, ensure_ascii=True),
+                },
+                timeout=aiohttp.ClientTimeout(total=300, sock_connect=10),
+            ) as response:
+                if response.status == 404:
+                    raise TrainerError(translation_domain=DOMAIN, translation_key="extraction_update_trainer")
+                if response.status >= 400:
+                    raise TrainerError(translation_domain=DOMAIN, translation_key="extraction_unavailable")
+                payload = await response.json()
+                if not isinstance(payload, dict) or not isinstance(payload.get("segments"), list):
+                    raise TrainerError(translation_domain=DOMAIN, translation_key="extraction_invalid")
+                return payload
+        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+            raise TrainerError(translation_domain=DOMAIN, translation_key="trainer_unreachable") from err
+
     async def report(self) -> dict[str, Any]:
         return await self._json("GET", "/v1/report")
 

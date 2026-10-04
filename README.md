@@ -73,7 +73,8 @@ For a GUI microphone test without Assist or the training computer, call
 Recording continues until stopped. Long sessions are split into segments of
 `wake_word_manual_duration` (default 30 seconds, configurable up to 120 seconds),
 preserving the beginning of each segment.
-The clip has no transcript: listen under **To check** and accept it manually.
+The clip has no transcript until optional workstation recognition runs: listen
+under **To check** and accept extracted examples manually.
 Quality warnings remain visible and clips wait for manual acceptance. This requires the matching ESPHome package.
 The review card updates when recordings change; optional `recordings_entity` selects
 the statistics sensor and `device_names` maps device identifiers to room names.
@@ -246,7 +247,7 @@ lists the clips that are not the wake word, in the same way.
 ## Privacy
 
 Recordings are voice data of the people in your home. They stay in the
-storage folder of your Home Assistant; nothing is sent elsewhere. Keep the
+storage folder of your Home Assistant; manual recordings are sent only to your configured workstation when extraction is enabled. Keep the
 folder out of shared backups, and do not publish models trained on other
 people's voices without their consent. Diagnostics contain no audio and no
 token.
@@ -323,3 +324,35 @@ Dafür muss auch das ESPHome-Paket auf demselben Stand sein.
 Die Aufnahmekarte aktualisiert sich bei Änderungen automatisch. Optional wählt
 `recordings_entity` den Bestandssensor und `device_names` ordnet Gerätekennungen
 den eigenen Raumnamen zu.
+
+### Automatic extraction from manual recordings
+
+With an updated Wake Word Trainer and its optional `segment` extra installed,
+enable `extraction.enabled: true` in the trainer service configuration. New
+manual microphone recordings are then processed in the background: complete
+configured wake-word phrases and variants become individual clips under
+**To check**. The original recording is kept byte for byte. No clip is accepted
+for training automatically. Listen and accept only suitable examples.
+
+The card offers **Automatically extract new microphone recordings** (persisted
+per collector) and **Extract wake words** on saved manual clips, also for older
+recordings and retries. Progress, no matches and workstation errors appear on
+the original. Interrupted work resumes on integration reload; unavailable
+workstations leave the original playable and a retry button. Successfully
+processed originals reuse their clips on retries instead of duplicating them.
+The `extract` and `auto_extract` services expose the same actions.
+
+Phrase and variants come from the Collector configuration; model, language,
+padding and confidence are workstation configuration. Recognition does not use
+the satellite's wake-word model and does not require it to detect your examples.
+Allow roughly one second between repetitions. Recognition can miss difficult
+pronunciations; manual editing remains available. Long sessions retain the
+ESPHome package's segment boundaries and short upload pauses.
+
+Deutsch: Neue Mikrofonaufnahmen automatisch schneiden lässt sich in der Karte
+an- und ausschalten. **Aktivierungswörter ausschneiden** verarbeitet vorhandene
+Aufnahmen oder wiederholt einen fehlgeschlagenen Versuch. Die Workstation
+benötigt das Trainer-Extra `segment` und `extraction.enabled: true`. Erkannte
+Wörter werden mit etwas Vor- und Nachlauf kopiert; das Original bleibt erhalten.
+Alle Ausschnitte erscheinen unter **Zu prüfen** und werden erst nach **Annehmen**
+zum Trainingsmaterial. Verarbeitungsstand und Fehler stehen an der Originalaufnahme.

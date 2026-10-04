@@ -230,3 +230,59 @@ def test_reads_layout_of_older_collectors(store: Store) -> None:
     write(legacy / "ha_sat1_20260801T120000_0123456789ab.wav", speech(1))
     assert store.stats()["needs_review"] == 1
     assert store.list()[0]["category"] == "rejected_transcript"
+
+
+def test_extract_preserves_original_waits_for_review_and_is_idempotent(tmp_path):
+    store = Store(tmp_path, HEY_NOVA)
+    [source] = store.add("office", "", wav_bytes(speech(30)), kind="manual")
+    body, sha = store.extraction_snapshot("needs_review", "office", source["filename"])
+    segments = [
+        {"start_ms": 800, "end_ms": 2000, "phrase": "hey nova"},
+        {"start_ms": 6000, "end_ms": 7500, "phrase": "hei nova"},
+    ]
+    result = store.extract_phrases("needs_review", "office", source["filename"], sha, segments)
+    assert result["count"] == 2
+    assert store.audio("needs_review", "office", source["filename"]).read_bytes() == body
+    assert store.stats()["candidates"] == 0
+    assert store.extract_phrases("needs_review", "office", source["filename"], sha, segments) == result
+    assert store.stats()["total"] == 3
+    assert sorted(i["duration_ms"] for i in store.list()) == [1200, 1500, 30000]
+    store.review("needs_review", "office", result["clips"][0], "accept")
+    assert store.extract_phrases("needs_review", "office", source["filename"], sha, segments) == result
+    assert store.stats()["candidates"] == 1 and store.stats()["total"] == 3
+
+
+def test_extraction_validates_all_boundaries_before_creating_clips(tmp_path):
+    store = Store(tmp_path, HEY_NOVA)
+    [source] = store.add("office", "", wav_bytes(speech(30)), kind="manual")
+    _body, sha = store.extraction_snapshot("needs_review", "office", source["filename"])
+    for segments in [
+        [
+            {"start_ms": 0, "end_ms": 1500, "phrase": "hey nova"},
+            {"start_ms": 29000, "end_ms": 31000, "phrase": "hey nova"},
+        ],
+        [{"start_ms": 0, "end_ms": 1500, "phrase": "hey nora"}],
+        [
+            {"start_ms": 0, "end_ms": 1500, "phrase": "hey nova"},
+            {"start_ms": 1000, "end_ms": 2000, "phrase": "hey nova"},
+        ],
+    ]:
+        with pytest.raises(CollectorError, match="extraction_invalid"):
+            store.extract_phrases("needs_review", "office", source["filename"], sha, segments)
+        assert store.stats()["total"] == 1
+    store.trim("needs_review", "office", source["filename"], 0, 2000)
+    with pytest.raises(CollectorError, match="extraction_changed"):
+        store.extract_phrases("needs_review", "office", source["filename"], sha, [])
+
+
+def test_extraction_no_matches_preserves_source_and_full_source_does_not_replace_metadata(tmp_path):
+    store = Store(tmp_path, HEY_NOVA)
+    [source] = store.add("office", "", wav_bytes(speech(1.5)), kind="manual")
+    body, sha = store.extraction_snapshot("needs_review", "office", source["filename"])
+    assert store.extract_phrases("needs_review", "office", source["filename"], sha, [])["count"] == 0
+    result = store.extract_phrases(
+        "needs_review", "office", source["filename"], sha, [{"start_ms": 0, "end_ms": 1500, "phrase": "hey nova"}]
+    )
+    assert result["clips"][0] != source["filename"]
+    assert store.records()[("office", source["filename"])]["kind"] == "manual"
+    assert store.audio("needs_review", "office", source["filename"]).read_bytes() == body

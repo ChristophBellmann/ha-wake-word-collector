@@ -65,6 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = collector
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_options_updated))
+    await collector.async_resume_extractions()
     return True
 
 
@@ -166,12 +167,26 @@ def _register_services(hass: HomeAssistant) -> None:
             data["category"], data["device"], data["filename"], data["start_ms"], data["end_ms"], data["mode"]
         )
 
+    async def extract(call: ServiceCall) -> dict[str, Any]:
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        data = call.data
+        return await collector.async_extract(data["category"], data["device"], data["filename"])
+
+    async def auto_extract(call: ServiceCall) -> None:
+        _collector(hass, call.data.get("config_entry_id")).update_settings(auto_extract=call.data["enabled"])
+
     clip = {
         ENTRY: cv.string,
         vol.Required("category"): vol.In(CATEGORIES),
         vol.Required("device"): cv.string,
         vol.Required("filename"): cv.string,
     }
+    hass.services.async_register(
+        DOMAIN, "extract", extract, schema=vol.Schema(clip), supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register(
+        DOMAIN, "auto_extract", auto_extract, schema=vol.Schema({ENTRY: cv.string, vol.Required("enabled"): cv.boolean})
+    )
     target = vol.Schema({ENTRY: cv.string, vol.Optional("device"): cv.string})
     hass.services.async_register(DOMAIN, "start", start, schema=target)
     hass.services.async_register(DOMAIN, "stop", stop, schema=target)
@@ -273,8 +288,8 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema(
             {
                 **clip,
-                vol.Required("start_ms"): vol.All(vol.Coerce(int), vol.Range(min=0, max=60000)),
-                vol.Required("end_ms"): vol.All(vol.Coerce(int), vol.Range(min=0, max=60000)),
+                vol.Required("start_ms"): vol.All(vol.Coerce(int), vol.Range(min=0, max=120000)),
+                vol.Required("end_ms"): vol.All(vol.Coerce(int), vol.Range(min=0, max=120000)),
                 vol.Optional("mode", default="keep"): vol.In(["keep", "remove", "extract"]),
             }
         ),
@@ -297,5 +312,14 @@ async def ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
             item["audio_path"] = AUDIO_URL.format(
                 entry_id=entry_id, category=item["category"], device=item["device"], filename=item["filename"]
             )
-        result.append({"entry_id": entry_id, "title": collector.entry.title, "stats": collector.stats, "items": items})
+        result.append(
+            {
+                "entry_id": entry_id,
+                "title": collector.entry.title,
+                "stats": collector.stats,
+                "items": items,
+                "auto_extract": collector.auto_extract,
+                "has_trainer": collector.trainer is not None,
+            }
+        )
     connection.send_result(msg["id"], {"collectors": result})

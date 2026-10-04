@@ -88,12 +88,13 @@ async def test_speaker_test_with_satellite(hass: HomeAssistant, trained, hass_cl
     )
 
     played = []
+    timers = []
 
     async def play(route: str) -> dict:
         played.append(route)
         if len(played) != 2:  # the satellite recognizes clips 1 and 3
             hass.states.async_set(satellite.entity_id, "listening")
-            hass.loop.call_later(0.05, hass.states.async_set, satellite.entity_id, "idle")
+            timers.append(hass.loop.call_later(0.05, hass.states.async_set, satellite.entity_id, "idle"))
             # Its late report of the same activation must neither count again nor be stored.
             assert (await _report(client)).status == 201
         return {"route": route}
@@ -111,6 +112,8 @@ async def test_speaker_test_with_satellite(hass: HomeAssistant, trained, hass_cl
     # Shortly after the test, reports of the device are still played-back clips.
     assert (await _report(client)).status == 201
     assert collector.stats["triggers"] == 1
+    for timer in timers:
+        timer.cancel()
 
 
 async def test_speaker_test_by_reports(hass: HomeAssistant, trained, hass_client_no_auth, quick) -> None:  # noqa: F811

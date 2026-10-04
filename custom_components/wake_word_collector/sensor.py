@@ -55,6 +55,8 @@ class RecordingsSensor(_Base):
             "total": stats.get("total", 0),
             "candidates_by_device": stats.get("candidates_by_device", {}),
             "latest_recording_at": stats.get("latest_recording_at"),
+            "recordings_revision": stats.get("recordings_revision", 0),
+            "auto_extract": self.collector.auto_extract,
             "last_category": last.get("category"),
             "last_device": last.get("device"),
             "last_transcript": last.get("transcript"),
