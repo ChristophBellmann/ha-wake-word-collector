@@ -113,6 +113,12 @@ def set_substitution(text: str, key: str, value: str, comment: str, where: str) 
     return pattern.sub(lambda match: match.group(1) + line, text)
 
 
+def write_progress(path: Path, ledger: dict) -> None:
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(ledger, indent=2) + "\n")
+    os.replace(temporary, path)
+
+
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", type=Path, required=True)
@@ -219,7 +225,7 @@ def run(argv: list[str] | None = None) -> int:
                 continue
             entry = {"fingerprint": fingerprint, "verified": False, "started_at": dt.datetime.now(dt.UTC).isoformat()}
             ledger["devices"][device["file"]] = entry
-            ledger_path.write_text(json.dumps(ledger, indent=2) + "\n")
+            write_progress(ledger_path, ledger)
             print(f"Building: {device['file']}", flush=True)
             try:
                 result = subprocess.run(command, cwd=root, check=False)
@@ -227,7 +233,7 @@ def run(argv: list[str] | None = None) -> int:
             except OSError as err:
                 entry["error"] = type(err).__name__
             entry["ended_at"] = dt.datetime.now(dt.UTC).isoformat()
-            ledger_path.write_text(json.dumps(ledger, indent=2) + "\n")
+            write_progress(ledger_path, ledger)
             if not entry["verified"]:
                 failures.append(device["file"])
         if failures:
