@@ -94,6 +94,7 @@ STATUS_ATTRIBUTES = (
     "last_error",
     "gpu",
     "workstation_online",
+    "deployment",
 )
 TRAINING_STATES = ["idle", "starting", "running", "completed", "failed", "stopped"]
 

@@ -174,7 +174,18 @@ driven by a small YAML file
 model substitution of every listed device, derives the sensitivity steps from
 the trainer's evaluation (the chosen cutoff, and the most sensitive cutoffs
 with at most 2x and 5x as many false activations per hour), and with
-`--build` runs your build command for every changed device.
+`--build` runs your build command for every device not yet verified for this model.
+The command must return success only after verifying the running firmware.
+Progress is kept in `source/rollout.json`; rerunning `--build` retries failed
+devices and skips successful ones. A failure does not prevent the other devices
+from updating. `--commit` commits only after all requested builds succeed.
+
+Set `require_parity: true` to accept only a model with a passed trainer
+comparison for its SHA256. `{hash}` in `name` avoids collisions between runs
+on the same day. For automatic deployment from the trainer use
+`--expected-sha256 {sha256} --wait 120 --build`: the tool waits for the
+collector to receive that exact model and its comparison. Keep your device
+paths, flash command and credentials in your local configuration.
 
 ```sh
 python3 model_update.py --config wake-word-model.yaml --dry-run

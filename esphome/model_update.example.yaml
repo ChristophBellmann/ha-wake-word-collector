@@ -6,7 +6,8 @@ slug: hey_nova                      # the wake word's slug in the integration
 # <storage folder of the entry>/model (default <config>/wake_word_collector/<slug>/model).
 source: ../wake_word_collector/hey_nova/model
 models: models                      # model files, referenced as models/<name>.json
-name: "{slug}_{date}"               # new file name; {slug}, {date} (YYYYMMDD)
+name: "{slug}_{date}_{hash}"               # {slug}, {date} (YYYYMMDD), {hash} (12 SHA256 characters)
+require_parity: true               # passed trainer comparison bound to the exact model
 min_cutoff: 0.5                     # never more sensitive than this (0-1)
 
 # Sensitivity substitutions -> allowed false activations per hour, as a multiple
@@ -26,5 +27,5 @@ devices:
       wake_word_slight_cutoff_uint8: 1
       wake_word_very_cutoff_uint8: 3
 
-# Optional: with --build, run for every changed device ({file} = its configuration).
+# Optional: with --build, run for every not yet verified device ({file} = its configuration).
 build: [esphome, run, "{file}", --no-logs]

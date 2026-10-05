@@ -103,3 +103,60 @@ def test_errors(setup: Path, tmp_path: Path) -> None:
     (tmp_path / "bad.yaml").write_text("slug: x\n")
     with pytest.raises(model_update.UpdateError, match="'source' is missing"):
         model_update.run(["--config", str(tmp_path / "bad.yaml")])
+
+
+def test_parity_blocks_unchecked_or_different_model(setup: Path) -> None:
+    import hashlib
+
+    config_path = setup / "wake-word-model.yaml"
+    config = json.loads(config_path.read_text())
+    config["require_parity"] = True
+    config["name"] = "{slug}_{date}_{hash}"
+    config_path.write_text(json.dumps(config))
+    info = setup.parent / "wake_word_collector/hey_nova/model/source.json"
+    source = json.loads(info.read_text())
+    for parity in ({}, {"passed": False}, {"passed": True, "candidate_sha256": "other"}):
+        source["report"]["parity"] = parity
+        info.write_text(json.dumps(source))
+        with pytest.raises(model_update.UpdateError, match="parity"):
+            model_update.run(["--config", str(config_path), "--build"])
+        assert (setup / "kitchen.yaml").read_text() == DEVICE
+        assert not (setup / "models").exists()
+    digest = hashlib.sha256(b"TFL3").hexdigest()
+    source["report"]["parity"] = {
+        "passed": True,
+        "candidate_sha256": digest,
+        "candidate_manifest_sha256": hashlib.sha256((info.parent / "hey_nova.json").read_bytes()).hexdigest(),
+    }
+    info.write_text(json.dumps(source))
+    with pytest.raises(model_update.UpdateError, match="expected model"):
+        model_update.run(["--config", str(config_path), "--expected-sha256", "wrong"])
+    assert model_update.run(["--config", str(config_path), "--expected-sha256", digest, "--build"]) == 0
+    assert (setup / "models" / f"hey_nova_20261005_{digest[:12]}.tflite").exists()
+
+
+def test_partial_failure_retries_only_failed_device(setup: Path, monkeypatch) -> None:
+    config_path = setup / "wake-word-model.yaml"
+    calls = []
+
+    def build(command, **kwargs):
+        from types import SimpleNamespace
+
+        calls.append(command[-1])
+        return SimpleNamespace(returncode=int("sub/hall.yaml" in command[-1] and len(calls) == 2))
+
+    monkeypatch.setattr(model_update.subprocess, "run", build)
+    with pytest.raises(model_update.UpdateError, match="hall.yaml"):
+        model_update.run(["--config", str(config_path), "--build"])
+    assert len(calls) == 2
+    assert model_update.run(["--config", str(config_path), "--build"]) == 0
+    assert len(calls) == 3
+    assert "sub/hall.yaml" in calls[-1]
+    assert model_update.run(["--config", str(config_path), "--build"]) == 0
+    assert len(calls) == 3
+    # A firmware change must invalidate the successful verification.
+    with (setup / "kitchen.yaml").open("a") as stream:
+        stream.write("\n# changed firmware\n")
+    model_update.run(["--config", str(config_path), "--build"])
+    assert len(calls) == 4
+    assert "kitchen.yaml" in calls[-1]

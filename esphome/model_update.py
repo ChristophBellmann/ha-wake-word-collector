@@ -13,7 +13,7 @@ small YAML file next to your ESPHome configurations:
    its false activation budget); factor 2 the most sensitive cutoff with at
    most twice as many false activations per hour, and so on; never below
    `min_cutoff`. Values are 0-255, as `set_probability_cutoff` takes them,
-4. with --build, runs your build command for every changed device.
+4. with --build, runs your build command for every device not yet verified for this model; failed devices can be retried.
 
 Run it with the Python that has ESPHome installed (it needs PyYAML):
 
@@ -27,11 +27,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +118,9 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--name", help="file name without extension (default from the configuration)")
     parser.add_argument("--dry-run", action="store_true", help="only show what would change")
-    parser.add_argument("--build", action="store_true", help="run the build command for each changed device")
+    parser.add_argument("--build", action="store_true", help="build and install unverified devices")
+    parser.add_argument("--expected-sha256", help="wait for this exact model from the trainer")
+    parser.add_argument("--wait", type=float, default=0, help="seconds to wait for the expected model and parity")
     parser.add_argument("--commit", action="store_true", help="git commit the changed files (no push)")
     args = parser.parse_args(argv)
 
@@ -124,9 +128,32 @@ def run(argv: list[str] | None = None) -> int:
     config = load_config(config_path)
     root = config_path.parent
     slug = config["slug"]
-    manifest, model, report, ended = load_model((root / Path(config["source"]).expanduser()).resolve(), slug)
+    source = (root / Path(config["source"]).expanduser()).resolve()
+    deadline = time.monotonic() + args.wait
+    while True:
+        try:
+            manifest, model, report, ended = load_model(source, slug)
+            digest = hashlib.sha256(model).hexdigest()
+            if args.expected_sha256 and args.expected_sha256 != digest:
+                raise UpdateError("the collector has not received the expected model yet")
+            if config.get("require_parity"):
+                parity = report.get("parity") or {}
+                manifest_digest = hashlib.sha256((source / f"{slug}.json").read_bytes()).hexdigest()
+                if (
+                    parity.get("passed") is not True
+                    or parity.get("candidate_sha256") != digest
+                    or parity.get("candidate_manifest_sha256") != manifest_digest
+                ):
+                    raise UpdateError("no passed parity test for this model; nothing changed")
+            break
+        except (UpdateError, json.JSONDecodeError):
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
     day = (ended or dt.datetime.now(dt.UTC).date().isoformat())[:10]
-    name = args.name or str(config.get("name", "{slug}_{date}")).format(slug=slug, date=day.replace("-", ""))
+    name = args.name or str(config.get("name", "{slug}_{date}")).format(
+        slug=slug, date=day.replace("-", ""), hash=digest[:12]
+    )
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
         raise UpdateError(f"invalid file name {name!r}")
     models = root / config.get("models", "models")
@@ -169,23 +196,59 @@ def run(argv: list[str] | None = None) -> int:
         path.write_text(text, encoding="utf-8")
     print(f"Written: model and {len(changed)} device configuration(s).")
 
-    if args.commit:
-        files = [str(target_model), str(target_manifest), *map(str, changed)]
-        subprocess.run(["git", "-C", str(root), "add", "--", *files], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-m", f"Wake word model {name}"], check=True)
     build = config.get("build")
     if args.build:
-        if not build:
-            raise UpdateError("--build needs 'build' in the configuration")
-        for path in changed:
-            command = [str(part).format(file=os.path.relpath(path, root)) for part in build]
-            print("Building:", " ".join(command))
-            if subprocess.run(command, cwd=root, check=False).returncode != 0:
-                raise UpdateError(f"build failed for {path.name}; the others were not built")
+        if not isinstance(build, list) or not build or not all(isinstance(part, str) for part in build):
+            raise UpdateError("--build needs a command argument list in 'build'")
+        # Runtime data belongs beside the downloaded model, outside version control.
+        ledger_path = source / "rollout.json"
+        ledger = json.loads(ledger_path.read_text()) if ledger_path.is_file() else {}
+        if ledger.get("model_sha256") != digest:
+            ledger = {"model_sha256": digest, "devices": {}}
+        failures = []
+        for device in config["devices"]:
+            path = (root / device["file"]).resolve()
+            command = [part.format(file=os.path.relpath(path, root)) for part in build]
+            # A changed firmware configuration or command needs verification again.
+            fingerprint = hashlib.sha256(
+                path.read_bytes() + target_manifest.read_bytes() + json.dumps(command).encode()
+            ).hexdigest()
+            previous = ledger["devices"].get(device["file"], {})
+            if previous.get("verified") and previous.get("fingerprint") == fingerprint:
+                print(f"Already verified: {device['file']}")
+                continue
+            entry = {"fingerprint": fingerprint, "verified": False, "started_at": dt.datetime.now(dt.UTC).isoformat()}
+            ledger["devices"][device["file"]] = entry
+            ledger_path.write_text(json.dumps(ledger, indent=2) + "\n")
+            print(f"Building: {device['file']}", flush=True)
+            try:
+                result = subprocess.run(command, cwd=root, check=False)
+                entry.update(verified=result.returncode == 0, exit_code=result.returncode)
+            except OSError as err:
+                entry["error"] = type(err).__name__
+            entry["ended_at"] = dt.datetime.now(dt.UTC).isoformat()
+            ledger_path.write_text(json.dumps(ledger, indent=2) + "\n")
+            if not entry["verified"]:
+                failures.append(device["file"])
+        if failures:
+            raise UpdateError(
+                "build or device verification failed: " + ", ".join(failures) + "; rerun --build to retry"
+            )
     elif build and changed:
         print("Next, build and install:")
         for path in changed:
             print("  " + " ".join(str(part).format(file=os.path.relpath(path, root)) for part in build))
+    if args.commit:
+        # Include all configured devices on a retry, even if their YAML already matches.
+        files = [str(target_model), str(target_manifest), *[str(root / d["file"]) for d in config["devices"]]]
+        subprocess.run(["git", "-C", str(root), "add", "--", *files], check=True)
+        diff = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--quiet", "--", *files], check=False)
+        if diff.returncode == 1:
+            subprocess.run(
+                ["git", "-C", str(root), "commit", "-m", f"Wake word model {name}", "--", *files], check=True
+            )
+        elif diff.returncode:
+            raise UpdateError("could not check the staged model files")
     return 0
 
 
