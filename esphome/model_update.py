@@ -113,6 +113,14 @@ def set_substitution(text: str, key: str, value: str, comment: str, where: str) 
     return pattern.sub(lambda match: match.group(1) + line, text)
 
 
+def build_command(build: list[str], device: dict, root: Path) -> list[str]:
+    values = {**device, "file": os.path.relpath((root / device["file"]).resolve(), root)}
+    try:
+        return [part.format(**values) for part in build]
+    except KeyError as err:
+        raise UpdateError(f"{device['file']}: build placeholder {err} is missing in the device configuration") from err
+
+
 def write_progress(path: Path, ledger: dict) -> None:
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(ledger, indent=2) + "\n")
@@ -214,7 +222,7 @@ def run(argv: list[str] | None = None) -> int:
         failures = []
         for device in config["devices"]:
             path = (root / device["file"]).resolve()
-            command = [part.format(file=os.path.relpath(path, root)) for part in build]
+            command = build_command(build, device, root)
             # A changed firmware configuration or command needs verification again.
             fingerprint = hashlib.sha256(
                 path.read_bytes() + target_manifest.read_bytes() + json.dumps(command).encode()
@@ -242,8 +250,9 @@ def run(argv: list[str] | None = None) -> int:
             )
     elif build and changed:
         print("Next, build and install:")
-        for path in changed:
-            print("  " + " ".join(str(part).format(file=os.path.relpath(path, root)) for part in build))
+        for device in config["devices"]:
+            if (root / device["file"]).resolve() in changed:
+                print("  " + " ".join(build_command(build, device, root)))
     if args.commit:
         # Include all configured devices on a retry, even if their YAML already matches.
         files = [str(target_model), str(target_manifest), *[str(root / d["file"]) for d in config["devices"]]]

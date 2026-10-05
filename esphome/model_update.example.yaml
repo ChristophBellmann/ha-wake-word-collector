@@ -20,12 +20,14 @@ ladder:
 
 devices:
   - file: kitchen-satellite.yaml
+    address: kitchen-satellite.local # optional local address, available as {address} in build
     model: wake_word_model_file     # the substitution used in `micro_wake_word: models: - model: ...`
   - file: living-room.yaml
+    address: living-room.local
     model: wake_word_model_file
     ladder:                         # this one only has two steps
       wake_word_slight_cutoff_uint8: 1
       wake_word_very_cutoff_uint8: 3
 
 # Optional: with --build, run for every not yet verified device ({file} = its configuration).
-build: [esphome, run, "{file}", --no-logs]
+build: [esphome, run, "{file}", --device, "{address}", --no-logs]

@@ -160,3 +160,12 @@ def test_partial_failure_retries_only_failed_device(setup: Path, monkeypatch) ->
     model_update.run(["--config", str(config_path), "--build"])
     assert len(calls) == 4
     assert "kitchen.yaml" in calls[-1]
+
+
+def test_device_address_in_build_command(setup: Path):
+    command = model_update.build_command(
+        ["flash", "{file}", "{address}"], {"file": "kitchen.yaml", "address": "192.0.2.10"}, setup
+    )
+    assert command == ["flash", "kitchen.yaml", "192.0.2.10"]
+    with pytest.raises(model_update.UpdateError, match="placeholder"):
+        model_update.build_command(["flash", "{address}"], {"file": "kitchen.yaml"}, setup)
