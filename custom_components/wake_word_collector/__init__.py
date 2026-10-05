@@ -22,7 +22,15 @@ from .speaker_test import MAX_CLIPS, SpeakerTest
 from .trainer import TrainerClient, TrainerCoordinator
 from .views import VIEWS
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TEXT]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.TEXT,
+    Platform.SWITCH,
+]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 ENTRY = vol.Optional("config_entry_id")
 

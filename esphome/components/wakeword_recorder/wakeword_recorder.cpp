@@ -164,6 +164,12 @@ bool WakewordRecorder::finish_capture(const std::string &transcript, const std::
   return true;
 }
 
+void WakewordRecorder::mark_no_input() {
+  LockGuard guard{this->mutex_};
+  if (this->upload_pending_ && this->kind_ == "trigger")
+    this->kind_ = "trigger_no_input";
+}
+
 void WakewordRecorder::discard_capture() {
   LockGuard guard{this->mutex_};
   this->recording_ = false;

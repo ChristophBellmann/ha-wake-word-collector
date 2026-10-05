@@ -122,6 +122,11 @@
       "speaker_test_clips": {
         "name": "Lautsprechertest Aufnahmen"
       }
+    },
+    "switch": {
+      "auto_learn_false_positives": {
+        "name": "Aus Auslösungen ohne Eingabe lernen"
+      }
     }
   },
   "exceptions": {

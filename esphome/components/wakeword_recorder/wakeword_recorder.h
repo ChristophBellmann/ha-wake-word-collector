@@ -58,6 +58,8 @@ class WakewordRecorder : public Component {
   /// kind: empty or "utterance" for a spoken example, "trigger" for the audio
   /// right before the wake word engine fired (sent as X-Wakeword-Kind).
   bool finish_capture(const std::string &transcript, const std::string &kind = "");
+  // Only a confirmed empty STT result may label a buffered wake-word trigger.
+  void mark_no_input();
   bool upload_capture();
   void discard_capture();
   bool is_busy();

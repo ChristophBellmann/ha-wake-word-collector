@@ -367,3 +367,28 @@ benötigt das Trainer-Extra `segment` und `extraction.enabled: true`. Erkannte
 Wörter werden mit etwas Vor- und Nachlauf kopiert; das Original bleibt erhalten.
 Alle Ausschnitte erscheinen unter **Zu prüfen** und werden erst nach **Annehmen**
 zum Trainingsmaterial. Verarbeitungsstand und Fehler stehen an der Originalaufnahme.
+
+### Automatically learn from activations without input
+
+Enable the integration's **Learn from activations without input** switch
+(disabled by default). With the matching ESPHome package, a confirmed empty
+speech-to-text result (`stt-no-text-recognized`) marks the existing pre-trigger
+recording as `trigger_no_input`. The Collector stores it as a negative, with
+`auto_negative: true`, and exports it for training without manual review.
+Technical errors, disconnected satellites and ordinary unlabelled triggers
+continue to wait for review. Speaker-test recordings are excluded from learning.
+
+The trigger clip keeps the last three seconds of the original buffer, including
+the sound that caused the activation; it does not record a later empty room.
+No command text is sent with these clips. They remain local in the Collector's
+private storage and can be reviewed like other negatives. Absence of a command
+is a useful learning signal, not proof that the wake word was never said: keep
+the trainer's held-out comparison enabled to prevent degraded models from
+reaching devices.
+
+For unattended training configure `automatic_training` in the public Trainer's
+private `service.yaml`. It checks the night window, desktop inactivity, CPU/GPU
+activity and new sample hashes; it stops its own run if the user returns and
+restores paused GPU services. Enable parity-gated `deployment` to complete the
+loop from new negative to verified firmware. No HA YAML helper or external
+schedule is needed.

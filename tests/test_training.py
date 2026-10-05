@@ -343,3 +343,36 @@ async def test_extraction_unavailable_is_visible_and_original_is_playable(hass, 
     item = next(i for i in await collector.async_list() if i["filename"] == source["filename"])
     assert item["extraction_state"] == "error" and item["extraction_error"]
     assert collector.store.audio("needs_review", "office", source["filename"]).read_bytes() == body
+
+
+def test_no_input_negative_is_opt_in_and_keeps_trigger_audio(tmp_path: Path):
+    store = Store(tmp_path, Phrases.build("Hey Nova", "", "fertig"))
+    body = wav_bytes(silence(5) + speech(3, amplitude=200))
+    [record] = store.add("kitchen", "", body, "trigger_no_input")
+    assert record["category"] == "triggers" and not record["auto_negative"]
+    [negative] = store.add("kitchen", "", body, "trigger_no_input", True)
+    assert negative["category"] == "negatives" and negative["auto_negative"]
+    assert negative["duration_ms"] <= (TRIGGER_SECONDS + 0.1) * 1000
+    assert any(item["filename"] == negative["filename"] for item in store.negatives())
+    # A normal trigger without a confirmed empty STT result still needs review.
+    [unknown] = store.add("kitchen", "", body, "trigger", True)
+    assert unknown["category"] == "triggers" and not unknown["auto_negative"]
+
+
+async def test_automatic_no_input_upload_and_speaker_test_exclusion(hass: HomeAssistant, entry, hass_client_no_auth):
+    collector = entry.runtime_data
+    collector.update_settings(auto_learn_false_positives=True)
+    client = await hass_client_no_auth()
+    response = await client.post(
+        "/api/wake_word_collector/clips/hey_nova",
+        data=wav_bytes(speech(3)),
+        headers={"X-Wakeword-Token": TOKEN, "X-Wakeword-Device": "kitchen", "X-Wakeword-Kind": "trigger_no_input"},
+    )
+    assert response.status == 201
+    assert (await response.json())["records"][0]["category"] == "negatives"
+    from unittest.mock import Mock
+
+    collector.speaker_test = Mock()
+    collector.speaker_test.consume.return_value = True
+    assert await collector.async_add("kitchen", "", wav_bytes(speech(3)), "trigger_no_input") == []
+    collector.speaker_test.consume.assert_called_once_with("kitchen")

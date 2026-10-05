@@ -122,6 +122,11 @@
       "speaker_test_clips": {
         "name": "Loudspeaker test recordings"
       }
+    },
+    "switch": {
+      "auto_learn_false_positives": {
+        "name": "Learn from activations without input"
+      }
     }
   },
   "exceptions": {

@@ -324,6 +324,11 @@ voice_assistant:
               id: wake_word_recorder
               transcript: !lambda return x;
   on_error:
+    # An empty successful STT result means no command followed this activation.
+    # Connection, microphone and transcription failures must remain unlabelled.
+    - lambda: |-
+        if (!id(wake_word_collection_active) && code == "stt-no-text-recognized")
+          id(wake_word_recorder).mark_no_input();
     - if:
         condition:
           lambda: return id(wake_word_collection_active) && !id(wake_word_direct_recording);

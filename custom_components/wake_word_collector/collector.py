@@ -192,10 +192,14 @@ class Collector:
         device, node = device.lower(), node.lower()
         if node and NODE_RE.fullmatch(node) and DEVICE_RE.fullmatch(device) and self.node(device) != node:
             self.update_settings(nodes={device: node})
-        if kind == "trigger" and self.speaker_test is not None and self.speaker_test.consume(device):
+        if (
+            kind in ("trigger", "trigger_no_input")
+            and self.speaker_test is not None
+            and self.speaker_test.consume(device)
+        ):
             # Played back by the loudspeaker test: an evaluation clip, not a new example.
             return []
-        records = await self._run(self.store.add, device, transcript, body, kind)
+        records = await self._run(self.store.add, device, transcript, body, kind, self.auto_learn_false_positives)
         if kind == "manual" and self.auto_extract and self.trainer is not None:
             for record in records:
                 await self._run(self.store.extraction_status, device, record["filename"], "pending")
@@ -218,6 +222,10 @@ class Collector:
 
     async def async_negatives(self) -> list[dict]:
         return await self.hass.async_add_executor_job(self.store.negatives)
+
+    @property
+    def auto_learn_false_positives(self) -> bool:
+        return bool(self.settings.get("auto_learn_false_positives", False))
 
     @property
     def model_dir(self) -> Path:

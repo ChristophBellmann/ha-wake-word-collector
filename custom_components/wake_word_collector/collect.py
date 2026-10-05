@@ -340,13 +340,15 @@ class Store:
 
     # Upload -------------------------------------------------------------------
 
-    def add(self, device: str, transcript: str, body: bytes, kind: str = "utterance") -> list[dict]:
+    def add(
+        self, device: str, transcript: str, body: bytes, kind: str = "utterance", auto_negative: bool = False
+    ) -> list[dict]:
         """Store an uploaded clip; returns one record per stored part.
 
         kind "trigger": the seconds before the satellite's wake word engine fired.
         It is kept as it is (also when quiet: a false activation by a quiet noise
         is exactly what the model must learn) and waits for a decision."""
-        if kind not in ("utterance", "trigger", "manual"):
+        if kind not in ("utterance", "trigger", "trigger_no_input", "manual"):
             raise CollectorError("invalid_kind")
         device = device.lower()
         if not DEVICE_RE.fullmatch(device):
@@ -360,14 +362,14 @@ class Store:
             tmp.write(body)
             temp_path = Path(tmp.name)
         try:
-            if kind == "trigger":
+            if kind in ("trigger", "trigger_no_input"):
                 params, frames = read_wav(temp_path)
                 keep = int(TRIGGER_SECONDS * params.framerate) * params.sampwidth * params.nchannels
                 if len(frames) > keep:
                     write_wav(temp_path, params, frames[-keep:])
             meta = analyse(temp_path)
-            if kind == "trigger":
-                category = TRIGGERS
+            if kind in ("trigger", "trigger_no_input"):
+                category = NEGATIVES if kind == "trigger_no_input" and auto_negative else TRIGGERS
             elif kind == "manual":
                 category = NEEDS_REVIEW
             else:
@@ -399,6 +401,7 @@ class Store:
                     "split_count": len(parts),
                     "source_upload_sha256": upload_sha,
                     "kind": kind,
+                    "auto_negative": kind == "trigger_no_input" and auto_negative,
                     "sha256": sha256,
                     **part_meta,
                 }
@@ -510,6 +513,7 @@ class Store:
                         "repetition_count": record.get("repetition_count", 0),
                         "note": record.get("note", ""),
                         "kind": record.get("kind", ""),
+                        "auto_negative": record.get("auto_negative", False),
                         "extracted_from": record.get("extracted_from"),
                         "extraction_state": record.get("extraction_state", ""),
                         "extraction_error": record.get("extraction_error", ""),
