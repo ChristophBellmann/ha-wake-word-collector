@@ -1,9 +1,11 @@
-# Configuration for model_update.py: which ESPHome configurations get a newly
-# trained model. Paths are relative to this file; keep it next to your ESPHome
-# configurations (for the ESPHome add-on: /config/esphome/).
+# Configuration for model_update.py and the rollout from Home Assistant
+# (option "Model rollout configuration"): which ESPHome configurations get a
+# newly trained model. Paths are relative to this file; keep it next to your
+# ESPHome configurations (for the ESPHome add-on: /config/esphome/).
 slug: hey_nova                      # the wake word's slug in the integration
 # Where the integration keeps the model it took over from the trainer:
 # <storage folder of the entry>/model (default <config>/wake_word_collector/<slug>/model).
+# Only for the command line; the rollout from Home Assistant uses the entry's own folder.
 source: ../wake_word_collector/hey_nova/model
 models: models                      # model files, referenced as models/<name>.json
 name: "{slug}_{date}_{hash}"               # {slug}, {date} (YYYYMMDD), {hash} (12 SHA256 characters)
@@ -20,7 +22,7 @@ ladder:
 
 devices:
   - file: kitchen-satellite.yaml
-    address: kitchen-satellite.local # optional local address, available as {address} in build
+    address: kitchen-satellite.local # optional local address: {address} in build; the rollout installs to it
     model: wake_word_model_file     # the substitution used in `micro_wake_word: models: - model: ...`
   - file: living-room.yaml
     address: living-room.local

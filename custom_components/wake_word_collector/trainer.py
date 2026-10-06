@@ -178,6 +178,13 @@ class TrainerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             title="Wake Word Collector",
             notification_id=f"{DOMAIN}_{slug}_model",
         )
+        rollout = self.collector.rollout
+        if rollout is not None and self.collector.auto_rollout:
+            try:
+                await rollout.async_start()
+            except HomeAssistantError as err:
+                # Shown in the rollout sensor; e.g. no passed parity test for this model.
+                _LOGGER.warning("Automatic model rollout did not start: %s", err)
 
     def _write_model(self, manifest: bytes, model: bytes, info: dict[str, Any]) -> None:
         folder = self.collector.model_dir

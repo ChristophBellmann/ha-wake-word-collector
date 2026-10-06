@@ -55,6 +55,8 @@ class Collector:
         self.trainer = None
         # SpeakerTest; consumes trigger reports of the device under test.
         self.speaker_test = None
+        # Rollout when a model_update configuration is set (rollout_config).
+        self.rollout = None
         # Settings changed from entities: announcement guidance, speaker test
         # choices, and which ESPHome node each recording device is.
         self._settings_store = SettingsStore(hass, 1, f"{DOMAIN}.{entry.entry_id}")
@@ -226,6 +228,10 @@ class Collector:
     @property
     def auto_learn_false_positives(self) -> bool:
         return bool(self.settings.get("auto_learn_false_positives", False))
+
+    @property
+    def auto_rollout(self) -> bool:
+        return bool(self.settings.get("auto_rollout", False))
 
     @property
     def model_dir(self) -> Path:

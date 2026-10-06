@@ -17,7 +17,16 @@ from homeassistant.helpers.typing import ConfigType
 from . import intents
 from .collect import CATEGORIES, DECISIONS
 from .collector import Collector
-from .const import AUDIO_URL, CARD_URL, CONF_TRAINER_TOKEN, CONF_TRAINER_URL, DOMAIN
+from .const import (
+    AUDIO_URL,
+    CARD_URL,
+    CONF_ESPHOME_URL,
+    CONF_ROLLOUT_CONFIG,
+    CONF_TRAINER_TOKEN,
+    CONF_TRAINER_URL,
+    DOMAIN,
+)
+from .rollout import Rollout
 from .speaker_test import MAX_CLIPS, SpeakerTest
 from .trainer import TrainerClient, TrainerCoordinator
 from .views import VIEWS
@@ -62,6 +71,12 @@ async def _register_card(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     collector = Collector(hass, entry)
     await collector.async_setup()
+    # Before the trainer's first refresh: a model taken over then may be rolled out automatically.
+    if entry.options.get(CONF_ROLLOUT_CONFIG):
+        collector.rollout = Rollout(
+            hass, collector, entry.options[CONF_ROLLOUT_CONFIG], entry.options.get(CONF_ESPHOME_URL, "")
+        )
+        collector.rollout.load()
     if entry.options.get(CONF_TRAINER_URL):
         client = TrainerClient(hass, entry.options[CONF_TRAINER_URL], entry.options.get(CONF_TRAINER_TOKEN, ""))
         collector.trainer = TrainerCoordinator(hass, collector, client)
@@ -85,6 +100,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         collector: Collector = hass.data[DOMAIN].pop(entry.entry_id)
+        if collector.rollout is not None:
+            await collector.rollout.async_stop()
         await collector.async_unload()
     return unloaded
 
@@ -142,6 +159,12 @@ def _register_services(hass: HomeAssistant) -> None:
         result = await trainer.client.stop()
         await trainer.async_request_refresh()
         return result
+
+    async def rollout_model(call: ServiceCall) -> dict[str, Any]:
+        collector = _collector(hass, call.data.get("config_entry_id"))
+        if collector.rollout is None:
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="rollout_not_configured")
+        return await collector.rollout.async_start(dry_run=call.data["dry_run"])
 
     async def speaker_test(call: ServiceCall) -> dict[str, Any]:
         return await _trainer(call).client.speaker_test(call.data["route"])
@@ -247,6 +270,13 @@ def _register_services(hass: HomeAssistant) -> None:
         "stop_training",
         stop_training,
         schema=vol.Schema({ENTRY: cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "rollout_model",
+        rollout_model,
+        schema=vol.Schema({ENTRY: cv.string, vol.Optional("dry_run", default=False): cv.boolean}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(

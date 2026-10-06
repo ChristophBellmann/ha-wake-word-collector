@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from .collector import Collector
 from .entity import CollectorEntity, TrainerEntity
+from .rollout import STATES as ROLLOUT_STATES
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEntitiesCallback) -> None:
@@ -29,6 +30,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEnt
             ModelSensor(collector),
             SpeakerTestSensor(collector, "speaker_test"),
         ]
+    if collector.rollout is not None:
+        entities.append(RolloutSensor(collector, "rollout"))
     add(entities)
 
 
@@ -180,4 +183,23 @@ class SpeakerTestSensor(_Base):
                 "message",
                 "finished_at",
             )
+        }
+
+
+class RolloutSensor(_Base):
+    """Where the last model rollout to the satellites stands."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ROLLOUT_STATES
+
+    @property
+    def native_value(self) -> str:
+        state = self.collector.rollout.result.get("state")
+        return state if state in ROLLOUT_STATES else "idle"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        result = self.collector.rollout.result
+        return {
+            key: result.get(key) for key in ("model", "message", "current", "step", "devices", "started_at", "ended_at")
         }

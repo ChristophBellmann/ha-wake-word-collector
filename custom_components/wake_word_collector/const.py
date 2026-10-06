@@ -10,6 +10,9 @@ CONF_TOKEN = "token"
 CONF_SLUG = "slug"
 CONF_TRAINER_URL = "trainer_url"
 CONF_TRAINER_TOKEN = "trainer_token"
+# Model rollout: model_update configuration and ESPHome Device Builder.
+CONF_ROLLOUT_CONFIG = "rollout_config"
+CONF_ESPHOME_URL = "esphome_url"
 
 CONTROL_DEFAULTS = {
     "en": "stop, finished, done, enough, start, recording",

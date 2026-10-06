@@ -9,6 +9,7 @@ import pytest
 
 SPEC = importlib.util.spec_from_file_location("model_update", Path(__file__).parents[1] / "esphome" / "model_update.py")
 model_update = importlib.util.module_from_spec(SPEC)
+sys.modules["model_update"] = model_update  # dataclasses look up their module
 SPEC.loader.exec_module(model_update)
 
 DEVICE = """substitutions:

@@ -29,4 +29,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "state": (collector.trainer.data or {}).get("state"),
             "model": collector.trainer.model,
         },
+        "rollout": None if collector.rollout is None else collector.rollout.result,
     }

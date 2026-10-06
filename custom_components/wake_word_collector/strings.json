@@ -39,21 +39,27 @@
           "control_words": "Command words",
           "storage": "Storage folder",
           "trainer_url": "Wake Word Trainer service",
-          "trainer_token": "Trainer token"
+          "trainer_token": "Trainer token",
+          "rollout_config": "Model rollout configuration",
+          "esphome_url": "ESPHome Device Builder"
         },
         "data_description": {
           "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
           "control_words": "Comma separated. Recordings containing them (e.g. \"I am done\") are kept apart as commands.",
           "storage": "Empty: the folder wake_word_collector/(wake word) in the configuration directory. Recordings are voice data: keep the folder out of public backups.",
           "trainer_url": "Optional, e.g. http://192.168.1.20:10701 (wake-word-trainer serve on the training computer). Empty: no training from Home Assistant.",
-          "trainer_token": "The token in the service's token_file."
+          "trainer_token": "The token in the service's token_file.",
+          "rollout_config": "Optional: the model_update YAML file next to your ESPHome configurations, e.g. esphome/wake-word-model.yaml (relative to the Home Assistant configuration folder). Empty: no rollout from Home Assistant.",
+          "esphome_url": "Optional, e.g. http://127.0.0.1:6052. Empty: the ESPHome Device Builder add-on known to the ESPHome integration."
         }
       }
     },
     "error": {
       "phrase_empty": "The wake word must contain at least one letter or digit.",
       "trainer_unreachable": "The trainer service does not answer at this address.",
-      "trainer_auth": "The trainer service refused the token."
+      "trainer_auth": "The trainer service refused the token.",
+      "rollout_config_invalid": "The rollout configuration cannot be read (see the README for its format).",
+      "esphome_unreachable": "The ESPHome Device Builder does not answer at this address."
     }
   },
   "entity": {
@@ -84,6 +90,16 @@
       },
       "speaker_test": {
         "name": "Loudspeaker test"
+      },
+      "rollout": {
+        "name": "Model rollout",
+        "state": {
+          "idle": "Idle",
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "blocked": "Blocked"
+        }
       }
     },
     "binary_sensor": {
@@ -100,6 +116,9 @@
       },
       "run_speaker_test": {
         "name": "Run loudspeaker test"
+      },
+      "rollout_model": {
+        "name": "Roll out model"
       }
     },
     "select": {
@@ -126,6 +145,9 @@
     "switch": {
       "auto_learn_false_positives": {
         "name": "Learn from activations without input"
+      },
+      "auto_rollout": {
+        "name": "Roll out new models automatically"
       }
     }
   },
@@ -237,6 +259,18 @@
     },
     "extraction_changed": {
       "message": "The original changed during recognition. Please retry."
+    },
+    "rollout_running": {
+      "message": "A model rollout is already running."
+    },
+    "rollout_blocked": {
+      "message": "The model is not rolled out: {error}"
+    },
+    "rollout_no_dashboard": {
+      "message": "No ESPHome Device Builder: set its address in the options or set up the ESPHome add-on."
+    },
+    "rollout_not_configured": {
+      "message": "No rollout configuration is set for this wake word (options)."
     }
   },
   "services": {
@@ -508,6 +542,20 @@
       "fields": {
         "enabled": {
           "name": "Enabled"
+        }
+      }
+    },
+    "rollout_model": {
+      "name": "Roll out model",
+      "description": "Put the last trained model into the ESPHome configurations and install it on every satellite through the ESPHome Device Builder. Runs in the background; progress in the model rollout sensor.",
+      "fields": {
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Only return what would change; write and install nothing."
+        },
+        "config_entry_id": {
+          "name": "Wake word",
+          "description": "Needed with several wake words."
         }
       }
     }

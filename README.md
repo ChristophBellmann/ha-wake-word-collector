@@ -164,11 +164,45 @@ ESPHome downloads it when compiling: flash the satellites after a new model
 (a notification and the event `wake_word_collector_model_ready` tell you).
 The model contains no audio and is served without login.
 
+### Roll out to the satellites from Home Assistant
+
+Training, review and flashing stay in Home Assistant: the integration puts a
+new model into your ESPHome configurations (see below) and installs it on
+every satellite through the **ESPHome Device Builder** (the ESPHome add-on or
+dashboard), one after the other. A satellite counts as done only when it is
+back in Home Assistant with a new firmware compilation time.
+
+1. Put a rollout configuration ([example](esphome/model_update.example.yaml))
+   next to your ESPHome configurations, e.g. `/config/esphome/wake-word-model.yaml`
+   with the ESPHome add-on. Device files are relative to it and must be the
+   configuration names the Device Builder shows.
+2. Under *Configure*, enter it as *Model rollout configuration* (relative to
+   the Home Assistant configuration folder, e.g. `esphome/wake-word-model.yaml`).
+   *ESPHome Device Builder* may stay empty with the add-on (the one the ESPHome
+   integration knows is used); otherwise enter its address, e.g.
+   `http://127.0.0.1:6052`. Home Assistant must be able to write the
+   configuration folder and the Device Builder must see the same files.
+3. Press `button.<wake word>_rollout_model`, or turn on
+   `switch.<wake word>_auto_rollout` to roll out every model taken over from
+   the trainer.
+
+`sensor.<wake word>_rollout` shows idle, running, completed, failed or
+blocked, with the device being built, the step (compiling, installing,
+verifying) and the result per device. `wake_word_collector.rollout_model`
+does the same as the button; with `dry_run: true` it only returns the new
+sensitivity steps per device. With `require_parity: true` a model without a
+passed trainer comparison is *blocked* and nothing is written. A failed
+device does not stop the others; rolling out again retries only the devices
+not verified for this model (progress in `<storage>/model/rollout.json`). The
+event `wake_word_collector_rollout_finished` and a notification report the
+result. Commit the changed configurations yourself if you keep them in git.
+
 ### Into your ESPHome configurations
 
 If your satellites keep their models as files next to their configurations
 (and set their sensitivity steps with `set_probability_cutoff`),
-[esphome/model_update.py](esphome/model_update.py) does the whole switch,
+[esphome/model_update.py](esphome/model_update.py) (the same code the
+integration uses for its rollout) does the whole switch,
 driven by a small YAML file
 ([example](esphome/model_update.example.yaml)): it copies the model, sets the
 model substitution of every listed device, derives the sensitivity steps from
@@ -228,6 +262,7 @@ turned on for every test and always off again afterwards.
 | `wake_word_collector.review` | accept, reject, or mark as not the wake word (`negative`) |
 | `wake_word_collector.review_latest_trigger` | judge the newest reported activation (`accept` or `negative`) |
 | `wake_word_collector.start_training` / `stop_training` | with a trainer service |
+| `wake_word_collector.rollout_model` | put the last model into the ESPHome configurations and install it through the ESPHome Device Builder (`dry_run`: only show the change) |
 | `wake_word_collector.import` | take over existing WAV recordings (e.g. from an earlier training setup) as accepted clips or negatives |
 | `wake_word_collector.run_speaker_test` | loudspeaker test: play several held-out recordings next to a satellite and count the recognitions (returns the result) |
 | `wake_word_collector.speaker_test` | the trainer plays one held-out recording through a loudspeaker (`route`) |
@@ -309,9 +344,12 @@ Satelliten aus. Mit `wake_word_report_triggers` melden die Satelliten jede
 Auslösung; Fehlalarme („Fehlalarm“ sagen oder in der Karte markieren) lernt
 das nächste Training zu ignorieren. Der Lautsprechertest misst einen
 Satelliten mit echtem Schall (der Trainer spielt zurückgehaltene Aufnahmen
-ab, Home Assistant zählt die Erkennungen), und `esphome/model_update.py`
-überträgt ein neues Modell samt Empfindlichkeitsstufen in die
-ESPHome-Konfigurationen und baut auf Wunsch die Firmware. Wie Aufnahmen
+ab, Home Assistant zählt die Erkennungen), und ein neues Modell rollt Home
+Assistant samt Empfindlichkeitsstufen in die ESPHome-Konfigurationen aus und
+flasht es über den ESPHome Device Builder auf die Satelliten
+(`button.<aktivierungswort>_rollout_model`, auf Wunsch automatisch nach jedem
+Training; Fortschritt in `sensor.<aktivierungswort>_rollout`). Dasselbe geht
+auf der Kommandozeile mit `esphome/model_update.py`. Wie Aufnahmen
 angekündigt werden, lässt sich per Sprache ändern
 (`text.<aktivierungswort>_announcement`).
 

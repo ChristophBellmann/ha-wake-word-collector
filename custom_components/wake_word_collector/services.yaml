@@ -107,6 +107,13 @@ start_training:
 stop_training:
   fields:
     config_entry_id: *entry
+rollout_model:
+  fields:
+    config_entry_id: *entry
+    dry_run:
+      default: false
+      selector:
+        boolean:
 speaker_test:
   fields:
     config_entry_id: *entry

@@ -15,7 +15,9 @@ from homeassistant.util import slugify
 from .collect import CollectorError, Phrases
 from .const import (
     CONF_CONTROL,
+    CONF_ESPHOME_URL,
     CONF_PHRASE,
+    CONF_ROLLOUT_CONFIG,
     CONF_SLUG,
     CONF_STORAGE,
     CONF_TOKEN,
@@ -44,6 +46,10 @@ def _schema(values: dict[str, Any], with_phrase: bool, trainer: bool = False) ->
         schema[
             vol.Optional(CONF_TRAINER_TOKEN, description={"suggested_value": values.get(CONF_TRAINER_TOKEN, "")})
         ] = PASSWORD
+        schema[
+            vol.Optional(CONF_ROLLOUT_CONFIG, description={"suggested_value": values.get(CONF_ROLLOUT_CONFIG, "")})
+        ] = TEXT
+        schema[vol.Optional(CONF_ESPHOME_URL, description={"suggested_value": values.get(CONF_ESPHOME_URL, "")})] = URL
     return vol.Schema(schema)
 
 
@@ -55,6 +61,25 @@ async def _check_trainer(hass, url: str, token: str) -> dict[str, str]:
     except TrainerError as err:
         key = "trainer_auth" if err.translation_key == "trainer_auth" else "trainer_unreachable"
         return {CONF_TRAINER_URL: key}
+    return {}
+
+
+async def _check_rollout(hass, config: str, url: str) -> dict[str, str]:
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    from .model_update import UpdateError, load_config
+    from .rollout import DashboardClient, DashboardError, config_path
+
+    if config:
+        try:
+            await hass.async_add_executor_job(load_config, config_path(hass, config))
+        except UpdateError:
+            return {CONF_ROLLOUT_CONFIG: "rollout_config_invalid"}
+    if url:
+        try:
+            await DashboardClient(async_get_clientsession(hass), url).devices()
+        except DashboardError:
+            return {CONF_ESPHOME_URL: "esphome_unreachable"}
     return {}
 
 
@@ -131,9 +156,13 @@ class WakeWordCollectorOptionsFlow(OptionsFlow):
             options[CONF_STORAGE] = user_input.get(CONF_STORAGE) or entry.options[CONF_STORAGE]
             options[CONF_TRAINER_URL] = (user_input.get(CONF_TRAINER_URL) or "").strip().rstrip("/")
             options[CONF_TRAINER_TOKEN] = (user_input.get(CONF_TRAINER_TOKEN) or "").strip()
+            options[CONF_ROLLOUT_CONFIG] = (user_input.get(CONF_ROLLOUT_CONFIG) or "").strip()
+            options[CONF_ESPHOME_URL] = (user_input.get(CONF_ESPHOME_URL) or "").strip().rstrip("/")
             errors = _valid(options)
             if not errors and options[CONF_TRAINER_URL]:
                 errors = await _check_trainer(self.hass, options[CONF_TRAINER_URL], options[CONF_TRAINER_TOKEN])
+            if not errors:
+                errors = await _check_rollout(self.hass, options[CONF_ROLLOUT_CONFIG], options[CONF_ESPHOME_URL])
             if not errors:
                 return self.async_create_entry(data=options)
         return self.async_show_form(
