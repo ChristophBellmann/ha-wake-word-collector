@@ -4,7 +4,8 @@
   "after_dependencies": [
     "frontend",
     "http",
-    "conversation"
+    "conversation",
+    "esphome"
   ],
   "codeowners": [
     "@ChristophBellmann"
