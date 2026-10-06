@@ -1,0 +1,11 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: Home Assistant Wake Word Collector
+  structure:
+    - type: space
+      key: wake-word-collector
+      title: Home Assistant Wake Word Collector
+      path: docs
+      default: true
+      content:
+        directory: ./docs
