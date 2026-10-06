@@ -90,7 +90,7 @@ settings if that folder is part of another repository.
 | Result per device | Meaning |
 | --- | --- |
 | `not in the ESPHome Device Builder` | the file is not among the Device Builder's configurations: device paths must be relative to the rollout configuration, which must lie in the Device Builder's folder |
-| `compile failed` / `install failed` | the last lines of the build log are in `<storage>/model/rollout.json` |
+| `compile failed` / `install failed` | the last lines of the build log are in `<storage>/model/rollout.json` (also when a compile takes longer than 60 minutes or an install longer than 15 minutes) |
 | `ESPHome Device Builder not reachable` | address in the options, or the add-on is not running |
 | `not verified` | the install reported success, but the device did not come back with new firmware within five minutes |
 

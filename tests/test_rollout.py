@@ -1,10 +1,16 @@
 """Model rollout from Home Assistant through the ESPHome Device Builder."""
 
+import asyncio
 import json
+from collections import deque
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import aiohttp
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
@@ -314,3 +320,43 @@ async def test_options_check_rollout(hass: HomeAssistant, tmp_path: Path, aiocli
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_ESPHOME_URL] == DASHBOARD
+
+
+async def builder_server(silence: float):
+    """A Device Builder job that stays silent like an OTA to a slow device and never reads the socket."""
+
+    async def job(request):
+        socket = web.WebSocketResponse(autoping=False)
+        await socket.prepare(request)
+        await socket.send_json({"event": "line", "data": "Uploading"})
+        await asyncio.sleep(silence)
+        await socket.send_json({"event": "exit", "code": 0})
+        return socket
+
+    app = web.Application()
+    app.router.add_get("/upload", job)
+    server = TestServer(app, host="127.0.0.1")
+    await server.start_server()
+    return server
+
+
+async def test_silent_upload_is_not_cut_off(monkeypatch, socket_enabled) -> None:
+    monkeypatch.setattr(rollout_module, "UPLOAD_TIMEOUT", timedelta(seconds=5))
+    server = await builder_server(silence=1.5)
+    lines: deque[str] = deque()
+    async with aiohttp.ClientSession() as session:
+        client = rollout_module.DashboardClient(session, str(server.make_url("")))
+        assert await client.upload("kitchen.yaml", "OTA", lines)
+    await server.close()
+    assert list(lines) == ["Uploading"]
+
+
+async def test_upload_ends_at_its_time_limit(monkeypatch, socket_enabled) -> None:
+    monkeypatch.setattr(rollout_module, "UPLOAD_TIMEOUT", timedelta(seconds=0.3))
+    server = await builder_server(silence=5)
+    lines: deque[str] = deque()
+    async with aiohttp.ClientSession() as session:
+        client = rollout_module.DashboardClient(session, str(server.make_url("")))
+        assert not await client.upload("kitchen.yaml", "OTA", lines)
+    await server.close()
+    assert lines[-1] == "upload did not finish within 0:00:00.300000"

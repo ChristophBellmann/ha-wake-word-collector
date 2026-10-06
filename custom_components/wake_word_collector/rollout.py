@@ -35,6 +35,11 @@ ROLLOUT_EVENT = f"{DOMAIN}_rollout_finished"
 STATES = ["idle", "running", "completed", "failed", "blocked"]
 VERIFY_TIMEOUT = timedelta(minutes=5)
 VERIFY_INTERVAL = 5
+# Upper bounds for one Device Builder job. The builder does not answer
+# websocket pings while a job runs, and an OTA to a device on weak Wi-Fi stays
+# silent for minutes, so there is no heartbeat; the job just has to end in time.
+COMPILE_TIMEOUT = timedelta(minutes=60)
+UPLOAD_TIMEOUT = timedelta(minutes=15)
 LOG_LINES = 15
 
 
@@ -59,11 +64,12 @@ class DashboardClient:
             raise DashboardError(str(err) or type(err).__name__) from err
         return {device["configuration"]: device for device in data.get("configured", [])}
 
-    async def _spawn(self, path: str, params: dict[str, str], lines: deque[str]) -> bool:
+    async def _spawn(self, path: str, params: dict[str, str], lines: deque[str], timeout: timedelta) -> bool:
         try:
-            async with self.session.ws_connect(
-                f"{self.url}/{path}", heartbeat=30, timeout=aiohttp.ClientWSTimeout(ws_close=10)
-            ) as client:
+            async with (
+                asyncio.timeout(timeout.total_seconds()),
+                self.session.ws_connect(f"{self.url}/{path}", timeout=aiohttp.ClientWSTimeout(ws_close=10)) as client,
+            ):
                 await client.send_json({"type": "spawn", **params})
                 async for message in client:
                     if message.type != aiohttp.WSMsgType.TEXT:
@@ -73,15 +79,18 @@ class DashboardClient:
                         return data.get("code") == 0
                     if data.get("event") == "line":
                         lines.extend(line for line in str(data.get("data", "")).splitlines() if line.strip())
-        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+        except TimeoutError:
+            lines.append(f"{path} did not finish within {timeout}")
+            return False
+        except (aiohttp.ClientError, ValueError) as err:
             raise DashboardError(str(err) or type(err).__name__) from err
         return False
 
     async def compile(self, configuration: str, lines: deque[str]) -> bool:
-        return await self._spawn("compile", {"configuration": configuration}, lines)
+        return await self._spawn("compile", {"configuration": configuration}, lines, COMPILE_TIMEOUT)
 
     async def upload(self, configuration: str, port: str, lines: deque[str]) -> bool:
-        return await self._spawn("upload", {"configuration": configuration, "port": port}, lines)
+        return await self._spawn("upload", {"configuration": configuration, "port": port}, lines, UPLOAD_TIMEOUT)
 
 
 def dashboard_url(hass: HomeAssistant, configured: str) -> str | None:
