@@ -46,10 +46,13 @@ result. Commit the changed configurations yourself if you keep them in git.
    install over the air to the device's `address` (or its mDNS name). Devices
    already verified for exactly this model, configuration and address are
    skipped.
-4. **Verify.** The device must reconnect to Home Assistant with a firmware
-   compilation time different from the one before the install (at most five
-   minutes). A device without an ESPHome entry in Home Assistant counts as
-   installed, not checked.
+4. **Verify.** The device must reconnect to Home Assistant running the
+   firmware the compiler just reported (`build_time_str`), within five
+   minutes. This also holds when nothing had to be recompiled. Without a
+   reported build time, any compilation time other than the one before the
+   install counts. The device is found by its node name, also with the MAC
+   suffix of `name_add_mac_suffix`. A device without an ESPHome entry in Home
+   Assistant counts as installed, not checked.
 5. **Report.** `sensor.<wake word>_rollout`, the event
    `wake_word_collector_rollout_finished` and a notification carry the result.
 
@@ -92,7 +95,7 @@ settings if that folder is part of another repository.
 | `not in the ESPHome Device Builder` | the file is not among the Device Builder's configurations: device paths must be relative to the rollout configuration, which must lie in the Device Builder's folder |
 | `compile failed` / `install failed` | the last lines of the build log are in `<storage>/model/rollout.json` (also when a compile takes longer than 60 minutes or an install longer than 15 minutes) |
 | `ESPHome Device Builder not reachable` | address in the options, or the add-on is not running |
-| `not verified` | the install reported success, but the device did not come back with new firmware within five minutes |
+| `not verified` | the install reported success, but the device did not come back with the firmware just built within five minutes |
 
 *Blocked* means nothing was written: usually no passed parity test for this
 model. A restart of Home Assistant during a rollout stops it; roll out again

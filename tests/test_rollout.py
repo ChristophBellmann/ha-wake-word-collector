@@ -57,6 +57,7 @@ class FakeBuilder:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
         self.compile_ok = True
+        self.build_time: str | None = None
         self.firmware = "Oct  1 2026, 10:00:00"
         self.known = {"kitchen.yaml": {"name": "kitchen", "configuration": "kitchen.yaml"}}
 
@@ -71,11 +72,15 @@ class FakeBuilder:
             async def compile(self, configuration, lines):
                 builder.calls.append(("compile", configuration))
                 lines.append("compiling")
+                if builder.build_time:
+                    lines.append(
+                        f"\\033[32mINFO Build Info: config_hash=0x1 build_time_str={builder.build_time}\\033[0m"
+                    )
                 return builder.compile_ok
 
             async def upload(self, configuration, port, lines):
                 builder.calls.append(("upload", configuration, port))
-                builder.firmware = f"Oct  6 2026, 10:00:{len(builder.calls):02d}"
+                builder.firmware = builder.build_time or f"Oct  6 2026, 10:00:{len(builder.calls):02d}"
                 return True
 
         return Client()
@@ -360,3 +365,51 @@ async def test_upload_ends_at_its_time_limit(monkeypatch, socket_enabled) -> Non
         assert not await client.upload("kitchen.yaml", "OTA", lines)
     await server.close()
     assert lines[-1] == "upload did not finish within 0:00:00.300000"
+
+
+async def test_unchanged_build_is_verified_by_its_build_time(hass: HomeAssistant, tmp_path: Path, builder) -> None:
+    """Nothing to recompile: the device already runs exactly what the compiler reported."""
+    setup_esphome(tmp_path)
+    write_model(tmp_path / "clips" / "model")
+    entry = await setup_entry(hass, tmp_path)
+    builder.build_time = builder.firmware = "2026-10-06 11:51:07 +0200"
+    await hass.services.async_call(DOMAIN, "rollout_model", {}, blocking=True, return_response=True)
+    await finish(entry)
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.hey_nova_rollout").attributes["devices"] == {"kitchen.yaml": "verified"}
+    ledger = json.loads((tmp_path / "clips" / "model" / "rollout.json").read_text())
+    assert ledger["devices"]["kitchen.yaml"]["detail"] == "runs firmware compiled 2026-10-06 11:51:07 +0200"
+
+
+async def test_other_firmware_than_the_build_is_not_verified(
+    hass: HomeAssistant, tmp_path: Path, builder, monkeypatch
+) -> None:
+    setup_esphome(tmp_path)
+    write_model(tmp_path / "clips" / "model")
+    entry = await setup_entry(hass, tmp_path)
+    monkeypatch.setattr(rollout_module, "VERIFY_INTERVAL", 0)
+    monkeypatch.setattr(rollout_module, "VERIFY_TIMEOUT", timedelta(seconds=0.05))
+    builder.build_time = "2026-10-06 11:51:07 +0200"
+
+    def device_data(node):
+        # A new firmware after the upload, but not the one the compiler just built.
+        uploaded = any(call[0] == "upload" for call in builder.calls)
+        compiled = "2026-10-06 10:00:00 +0200" if uploaded else "2026-10-06 09:00:00 +0200"
+        return SimpleNamespace(available=True, device_info=SimpleNamespace(name=node, compilation_time=compiled))
+
+    builder.device_data = device_data
+    await hass.services.async_call(DOMAIN, "rollout_model", {}, blocking=True, return_response=True)
+    await finish(entry)
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.hey_nova_rollout").attributes["devices"] == {"kitchen.yaml": "not verified"}
+
+
+def test_node_names_with_mac_suffix() -> None:
+    def info(name: str) -> SimpleNamespace:
+        return SimpleNamespace(name=name, mac_address="98:A3:16:C4:12:D0")
+
+    assert rollout_module._is_node(info("sat1"), "sat1")
+    assert rollout_module._is_node(info("sat1-c412d0"), "sat1")
+    assert not rollout_module._is_node(info("sat1-c412d1"), "sat1")
+    assert not rollout_module._is_node(info("sat10"), "sat1")
+    assert not rollout_module._is_node(info("sat1"), "")

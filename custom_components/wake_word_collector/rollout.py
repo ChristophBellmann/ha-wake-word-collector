@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from collections import deque
 from datetime import timedelta
 from pathlib import Path
@@ -41,6 +42,7 @@ VERIFY_INTERVAL = 5
 COMPILE_TIMEOUT = timedelta(minutes=60)
 UPLOAD_TIMEOUT = timedelta(minutes=15)
 LOG_LINES = 15
+BUILD_TIME = re.compile(r"build_time_str=(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d [+-]\d{4})")
 
 
 class DashboardError(Exception):
@@ -91,6 +93,17 @@ class DashboardClient:
 
     async def upload(self, configuration: str, port: str, lines: deque[str]) -> bool:
         return await self._spawn("upload", {"configuration": configuration, "port": port}, lines, UPLOAD_TIMEOUT)
+
+
+def _is_node(info: Any, node: str) -> bool:
+    """The device's name is the node name, or that plus a MAC suffix (``name_add_mac_suffix``)."""
+    name = getattr(info, "name", None)
+    if not node or not name:
+        return False
+    if name == node:
+        return True
+    mac = str(getattr(info, "mac_address", "") or "").replace(":", "").lower()
+    return len(mac) == 12 and name == f"{node}-{mac[-6:]}"
 
 
 def dashboard_url(hass: HomeAssistant, configured: str) -> str | None:
@@ -227,10 +240,10 @@ class Rollout:
         node = known.get(configuration, {}).get("name", "")
         before = self.compilation_time(node) if node else None
         lines: deque[str] = deque(maxlen=LOG_LINES)
-        state = await self._build(device.file, configuration, port, client, known, lines)
+        state, built = await self._build(device.file, configuration, port, client, known, lines)
         if state == "installed":
             self._set(current=device.file, step="verifying")
-            verified, detail = await self._verify(node, before)
+            verified, detail = await self._verify(node, before, built)
             entry.update(verified=verified, detail=detail)
             state = "verified" if verified else "not verified"
         else:
@@ -247,27 +260,30 @@ class Rollout:
         client: DashboardClient,
         known: dict[str, dict[str, Any]],
         lines: deque[str],
-    ) -> str:
+    ) -> tuple[str, str | None]:
+        """Compile and install; also the build time the compiler reported, if any."""
         if configuration not in known:
-            return "not in the ESPHome Device Builder"
+            return "not in the ESPHome Device Builder", None
         try:
             self._set(current=file, step="compiling")
             if not await client.compile(configuration, lines):
-                return "compile failed"
+                return "compile failed", None
+            found = BUILD_TIME.search("\n".join(lines))
+            built = found.group(1) if found else None
             self._set(current=file, step="installing")
             if not await client.upload(configuration, port, lines):
-                return "install failed"
+                return "install failed", built
         except DashboardError as err:
             lines.append(str(err))
-            return "ESPHome Device Builder not reachable"
-        return "installed"
+            return "ESPHome Device Builder not reachable", None
+        return "installed", built
 
     def _device_data(self, node: str) -> Any:
         """Runtime data of the ESPHome config entry for this node, if Home Assistant has it."""
         for entry in self.hass.config_entries.async_entries("esphome"):
             data = getattr(entry, "runtime_data", None)
             info = getattr(data, "device_info", None)
-            if info is not None and getattr(info, "name", None) == node:
+            if info is not None and _is_node(info, node):
                 return data
         return None
 
@@ -275,15 +291,19 @@ class Rollout:
         data = self._device_data(node)
         return getattr(getattr(data, "device_info", None), "compilation_time", None)
 
-    async def _verify(self, node: str, before: str | None) -> tuple[bool, str]:
-        """Back online in Home Assistant with another firmware than before the install."""
+    async def _verify(self, node: str, before: str | None, built: str | None) -> tuple[bool, str]:
+        """Back online in Home Assistant with the firmware just built.
+
+        Without a build time from the compiler, any other firmware than before counts.
+        """
         if self._device_data(node) is None:
             return True, "installed; not set up in Home Assistant, so not checked"
         deadline = dt_util.utcnow() + VERIFY_TIMEOUT
         while dt_util.utcnow() < deadline:
             data = self._device_data(node)
             now = self.compilation_time(node)
-            if data is not None and getattr(data, "available", False) and now and now != before:
+            installed = now == built if built else now != before
+            if data is not None and getattr(data, "available", False) and now and installed:
                 return True, f"runs firmware compiled {now}"
             await asyncio.sleep(VERIFY_INTERVAL)
         return False, "did not come back with the new firmware"
