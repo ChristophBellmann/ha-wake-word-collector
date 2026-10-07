@@ -47,3 +47,20 @@ The full documentation is in [docs/](docs/README.md) (also as a GitBook):
 ## License
 
 Apache-2.0
+
+## GitBook source and maintenance
+
+The [published project documentation](https://renewable-energy-design.gitbook.io/home-assistent-wake-word-collector/) is maintained through GitSync
+from `ChristophBellmann/ha-wake-word-collector` on `main`. Page sources live in
+[`docs/`](docs/README.md), with navigation in
+[`docs/SUMMARY.md`](docs/SUMMARY.md). `.gitbook.yaml` and
+`gitbook-docs.yaml` point to the same content directory.
+
+Update the affected pages alongside changes to features, installation,
+architecture, data formats, verification results or repository relationships.
+Add new pages to `SUMMARY.md`, commit and push to `main`, then verify the
+published GitBook: synchronization is asynchronous. Clearly identify historical
+results and planned functionality. Thinkthing records the shared workflow in
+`docs/gitbooks.md` and `EXPERIENCE.md`; from that repository, run
+`python3 scripts/check_gitbook_sync.py --project wake-word-collector`
+to compare published text with fresh GitHub sources.
