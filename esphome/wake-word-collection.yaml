@@ -42,6 +42,12 @@ defaults:
   wake_word_token: replace-me
   wake_word_command_entity: sensor.wake_word_satellite_command
   wake_word_microphone_id: i2s_mics
+  # Record what the wake word engine hears: the same microphone channel and
+  # gain_factor as your micro_wake_word microphone (e.g. channel 1 with gain 6
+  # on a Satellite1). Otherwise trigger reports and collected examples come
+  # from a different signal than the one the model judged.
+  wake_word_microphone_channel: "0"
+  wake_word_microphone_gain: "1"
   wake_word_va_id: va
   wake_word_mww_id: mww
   wake_word_media_player_id: external_media_player
@@ -96,7 +102,8 @@ wakeword_recorder:
   id: wake_word_recorder
   microphone:
     microphone: ${wake_word_microphone_id}
-    channels: 0
+    channels: ${wake_word_microphone_channel}
+    gain_factor: ${wake_word_microphone_gain}
   http_request_id: http_request_id
   url: ${wake_word_url}
   token: ${wake_word_token}

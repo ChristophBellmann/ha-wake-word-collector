@@ -66,6 +66,7 @@ packages:
     vars:
       wake_word_device: test-satellite
       wake_word_report_triggers: "true"
+      wake_word_microphone_gain: "4"
       wake_word_token: test-token-test-token-test-token
       wake_word_command_entity: sensor.hey_jarvis_satellite_command
       wake_word_components: ../../esphome/components
