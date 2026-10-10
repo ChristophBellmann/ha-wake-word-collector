@@ -14,6 +14,13 @@ enter its address and token under *Configure*. You get:
 | `binary_sensor.<wake word>_trainer` | the training computer is reachable |
 | `sensor.<wake word>_model` | the last finished model, taken over automatically |
 
+Since Trainer 0.5.0 the service only starts a run when the training computer
+has enough free memory, CPU and (after pausing the configured GPU services)
+VRAM. Otherwise the start button reports why, for example
+`not enough free system resources: only 3.1 GB memory available, need 8 GB`.
+During a run the Trainer's status carries a warning when memory runs short;
+see the Trainer's `resource_check` setting.
+
 The finished model is served by Home Assistant for the satellites:
 
 ```yaml
