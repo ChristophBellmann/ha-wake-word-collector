@@ -7,6 +7,12 @@ In the card you listen, accept or reject, and trim clips in a waveform editor
 (keep, delete or extract a selection as a new clip). Originals are backed up
 before every edit.
 
+**Play** opens the clip's waveform with a playhead that follows the audio; the
+playing clip is outlined and its button turns into **Stop**. **Play selection**
+in the editor shows the same playhead. Very quiet clips, for example from a
+noise-suppressed wake word channel, are drawn enlarged so faint speech stays
+visible; the card states the factor. Only the drawing is scaled, not the audio.
+
 ## Direct microphone recording
 
 For a GUI microphone test without Assist or the training computer, call

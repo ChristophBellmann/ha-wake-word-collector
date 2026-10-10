@@ -21,6 +21,7 @@ const I18N = {
     confirm_reject: 'Reject this recording? It is kept and can be restored from the storage folder.',
     keep: 'Keep selection', remove: 'Delete selection', extract: 'Save selection as new recording',
     play_selection: 'Play selection', start: 'Start', end: 'End', selection: 'Selection {from}–{to} s ({len} s)',
+    stop: 'Stop', quiet_view: 'Quiet recording: waveform shown {x}× larger',
     min_length: 'At least 0.5 s must remain.', done: 'Done.', heard: 'Heard: “{text}”', refresh: 'Refresh',
   },
   de: {
@@ -41,6 +42,7 @@ const I18N = {
     confirm_reject: 'Diese Aufnahme verwerfen? Sie bleibt erhalten und lässt sich im Speicherordner wiederherstellen.',
     keep: 'Auswahl behalten', remove: 'Auswahl löschen', extract: 'Auswahl als neue Aufnahme speichern',
     play_selection: 'Auswahl abspielen', start: 'Anfang', end: 'Ende', selection: 'Auswahl {from}–{to} s ({len} s)',
+    stop: 'Stopp', quiet_view: 'Leise Aufnahme: Wellenform {x}-fach vergrößert dargestellt',
     min_length: 'Es müssen mindestens 0,5 s übrig bleiben.', done: 'Erledigt.', heard: 'Erkannt: „{text}“', refresh: 'Aktualisieren',
   },
 };
@@ -59,7 +61,11 @@ class WakeWordCollectorCard extends HTMLElement {
     this.limit = 30;
     this.message = '';
     this.busy = false;
-    this.editing = null; // {key, item, peaks, duration, start, end}
+    this.editing = null; // {key, item, peaks, duration, scale, start, end}
+    this.waves = {}; // key -> {peaks, duration, scale}, decoded once per recording
+    this.playing = null; // {key, audio}
+    this.shown = null; // key of the recording whose waveform is open for playback
+    this.frame = null;
     this.audioUrls = {};
     this.refreshTimer = null;
     this.audio = null;
@@ -83,7 +89,7 @@ class WakeWordCollectorCard extends HTMLElement {
     if (first) this.load();
     else if (changed) {
       clearTimeout(this.refreshTimer);
-      this.refreshTimer = setTimeout(() => { if (!this.busy && !this.editing) this.load(); }, 300);
+      this.refreshTimer = setTimeout(() => { if (!this.busy && !this.editing && !this.playing) this.load(); }, 300);
     }
   }
   async load() {
@@ -119,19 +125,75 @@ class WakeWordCollectorCard extends HTMLElement {
     this.audioUrls[key] = {url: result.path, expires: Date.now() + 500000};
     return result.path;
   }
+  async wave(item) {
+    const key = this.key(item);
+    if (this.waves[key]) return this.waves[key];
+    const response = await fetch(await this.signed(item));
+    const buffer = await response.arrayBuffer();
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await context.decodeAudioData(buffer);
+    context.close?.();
+    const peaks = this.peaks(decoded.getChannelData(0));
+    // Quiet recordings would look like a flat line: scale the drawing, not the audio.
+    const loudest = Math.max(...peaks, 1e-6);
+    const scale = Math.min(50, Math.max(1, 0.9 / loudest));
+    this.waves[key] = {peaks, duration: decoded.duration, scale};
+    return this.waves[key];
+  }
   async play(item) {
+    const key = this.key(item);
+    if (this.playing?.key === key) { this.stopPlayback(); return; }
     try {
-      this.audio?.pause();
-      this.audio = new Audio(await this.signed(item));
-      await this.audio.play();
+      this.stopPlayback(false);
+      const audio = new Audio(await this.signed(item));
+      this.shown = key;
+      this.wave(item).then(() => { if (this.shown === key) this.render(); }).catch(() => {});
+      await this.startPlayback(key, audio);
     } catch (error) {
       this.message = error.message || String(error);
       this.render();
     }
   }
+  async startPlayback(key, audio, end = null) {
+    this.audio = audio;
+    this.playing = {key, audio, end};
+    audio.addEventListener('ended', () => { if (this.playing?.audio === audio) this.stopPlayback(); });
+    this.render();
+    try {
+      await audio.play();
+    } catch (error) {
+      this.stopPlayback(false);
+      throw error;
+    }
+    const tick = () => {
+      if (this.playing?.audio !== audio) return;
+      if (end !== null && audio.currentTime >= end) { this.stopPlayback(); return; }
+      this.movePlayhead();
+      this.frame = requestAnimationFrame(tick);
+    };
+    this.frame = requestAnimationFrame(tick);
+  }
+  stopPlayback(render = true) {
+    cancelAnimationFrame(this.frame);
+    this.audio?.pause();
+    this.audio = null;
+    this.playing = null;
+    if (render) this.render();
+  }
+  movePlayhead() {
+    const p = this.playing;
+    if (!p) return;
+    const row = [...this.shadowRoot.querySelectorAll('.item')].find(r => r.dataset.key === p.key);
+    const line = row?.querySelector('.playhead');
+    const duration = this.editing?.key === p.key ? this.editing.duration : this.waves[p.key]?.duration;
+    if (!line || !duration) return;
+    const x = (Math.min(p.audio.currentTime, duration) / duration * 600).toFixed(1);
+    line.setAttribute('x1', x);
+    line.setAttribute('x2', x);
+  }
   disconnectedCallback() {
     clearTimeout(this.refreshTimer);
-    this.audio?.pause();
+    this.stopPlayback(false);
   }
   async service(name, data) {
     this.busy = true;
@@ -165,12 +227,8 @@ class WakeWordCollectorCard extends HTMLElement {
   async edit(item) {
     const key = this.key(item);
     if (this.editing?.key === key) { this.editing = null; this.render(); return; }
-    const response = await fetch(await this.signed(item));
-    const buffer = await response.arrayBuffer();
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    const decoded = await context.decodeAudioData(buffer);
-    context.close?.();
-    this.editing = {key, item, peaks: this.peaks(decoded.getChannelData(0)), duration: decoded.duration, start: 0, end: decoded.duration};
+    const wave = await this.wave(item);
+    this.editing = {key, item, ...wave, start: 0, end: wave.duration};
     this.render();
   }
   async playSelection() {
@@ -178,11 +236,8 @@ class WakeWordCollectorCard extends HTMLElement {
     if (!e) return;
     const audio = new Audio(await this.signed(e.item));
     audio.currentTime = e.start;
-    const stop = () => { if (audio.currentTime >= e.end) { audio.pause(); audio.removeEventListener('timeupdate', stop); } };
-    audio.addEventListener('timeupdate', stop);
-    this.audio?.pause();
-    this.audio = audio;
-    await audio.play();
+    this.stopPlayback(false);
+    await this.startPlayback(e.key, audio, e.end);
   }
   async trim(mode) {
     const e = this.editing;
@@ -198,18 +253,24 @@ class WakeWordCollectorCard extends HTMLElement {
       start_ms: Math.round(e.start * 1000), end_ms: Math.round(e.end * 1000), mode});
     if (ok) {
       delete this.audioUrls[e.key];
+      delete this.waves[e.key];
       this.editing = null;
       this.render();
     }
   }
-  waveform() {
-    const e = this.editing, width = 600, height = 90;
+  waveform(key, e = this.editing) {
+    const width = 600, height = 90, scale = e.scale || 1;
+    const start = e.start ?? 0, end = e.end ?? e.duration;
     const bars = e.peaks.map((peak, i) => {
-      const x = i * width / e.peaks.length, h = Math.max(1, peak * height);
-      const t = i / e.peaks.length * e.duration, inside = t >= e.start && t <= e.end;
+      const x = i * width / e.peaks.length, h = Math.max(1, Math.min(1, peak * scale) * height);
+      const t = i / e.peaks.length * e.duration, inside = t >= start && t <= end;
       return `<rect x="${x.toFixed(1)}" y="${((height - h) / 2).toFixed(1)}" width="${(width / e.peaks.length * 0.8).toFixed(2)}" height="${h.toFixed(1)}" fill="${inside ? 'var(--primary-color)' : 'var(--disabled-text-color, #aaa)'}"/>`;
     }).join('');
-    return `<svg class="wave" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${bars}</svg>`;
+    const p = this.playing?.key === key ? this.playing : null;
+    const x = p ? (Math.min(p.audio.currentTime, e.duration) / e.duration * width).toFixed(1) : 0;
+    const head = p ? `<line class="playhead" x1="${x}" x2="${x}" y1="0" y2="${height}" stroke="var(--accent-color, #ff9800)" stroke-width="3" vector-effect="non-scaling-stroke"/>` : '';
+    const quiet = scale >= 2 ? `<div class="muted">${escapeHtml(this.t('quiet_view', {x: Math.round(scale)}))}</div>` : '';
+    return `<svg class="wave" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${bars}${head}</svg>${quiet}`;
   }
   selectionText() {
     const e = this.editing;
@@ -217,20 +278,21 @@ class WakeWordCollectorCard extends HTMLElement {
   }
   editor() {
     const e = this.editing, d = e.duration, disabled = this.busy ? 'disabled' : '';
-    return `<div class="editor">${this.waveform()}
+    return `<div class="editor">${this.waveform(e.key)}
       <label>${escapeHtml(this.t('start'))}<input type="range" data-edge="start" min="0" max="${d}" step="0.01" value="${e.start}"></label>
       <label>${escapeHtml(this.t('end'))}<input type="range" data-edge="end" min="0" max="${d}" step="0.01" value="${e.end}"></label>
       <div class="muted" data-selection>${escapeHtml(this.selectionText())}</div>
-      <div class="actions"><button data-action="play-selection">${escapeHtml(this.t('play_selection'))}</button>
+      <div class="actions"><button data-action="play-selection">${escapeHtml(this.t(this.playing?.key === e.key ? 'stop' : 'play_selection'))}</button>
       <button data-trim="keep" ${disabled}>${escapeHtml(this.t('keep'))}</button>
       <button data-trim="remove" ${disabled}>${escapeHtml(this.t('remove'))}</button>
       <button data-trim="extract" ${disabled}>${escapeHtml(this.t('extract'))}</button></div></div>`;
   }
   row(item) {
     const key = this.key(item), editing = this.editing?.key === key, disabled = this.busy ? 'disabled' : '';
+    const playing = this.playing?.key === key, wave = !editing && this.shown === key && this.waves[key];
     const when = new Date(item.created_at).toLocaleString(this.locale());
     const length = item.duration_ms != null ? ` · ${this.num(item.duration_ms / 1000)} s` : '';
-    return `<div class="item ${item.category === 'candidates' ? '' : 'check'}" data-key="${escapeHtml(key)}">
+    return `<div class="item ${item.category === 'candidates' ? '' : 'check'} ${playing ? 'playing' : ''}" data-key="${escapeHtml(key)}">
       <div class="head"><strong>${escapeHtml(when)}</strong><span class="badge">${escapeHtml(this.t('cat_' + item.category))}</span></div>
       <div class="muted">${escapeHtml((this.config?.device_names?.[item.device] || item.device) + length)}</div>
       ${item.transcript ? `<div class="transcript">${escapeHtml(this.t('heard', {text: item.transcript}))}</div>` : ''}
@@ -239,7 +301,8 @@ class WakeWordCollectorCard extends HTMLElement {
       ${item.extraction_state && item.extraction_state !== 'error' ? `<div class="notice">${escapeHtml(this.t('extraction_' + item.extraction_state, {n: item.extraction_count || 0}))}</div>` : ''}
       ${item.extraction_error ? `<div class="notice" role="alert">${escapeHtml(item.extraction_error)}</div>` : ''}
       ${item.note ? `<div class="muted">${escapeHtml(item.note)}</div>` : ''}
-      <div class="actions"><button data-action="play">${escapeHtml(this.t('play'))}</button>
+      ${wave ? `<div class="editor">${this.waveform(key, wave)}</div>` : ''}
+      <div class="actions"><button data-action="play" aria-pressed="${playing}">${escapeHtml(this.t(playing ? 'stop' : 'play'))}</button>
       ${item.category !== 'candidates' ? `<button data-action="accept" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'was_wake_word' : 'accept'))}</button>` : ''}
       ${item.category !== 'negatives' ? `<button data-action="negative" ${disabled}>${escapeHtml(this.t(item.category === 'triggers' ? 'false_alarm' : 'negative'))}</button>` : ''}
       ${item.category !== 'rejected_quality' ? `<button data-action="reject" class="danger" ${disabled}>${escapeHtml(this.t('reject'))}</button>` : ''}
@@ -254,6 +317,8 @@ class WakeWordCollectorCard extends HTMLElement {
       button,select{font:inherit;color:var(--primary-text-color);background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:10px;padding:8px 10px;min-height:40px;cursor:pointer}
       button:disabled{opacity:.5}button.danger{color:var(--error-color)}
       .item{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px;margin:8px 0}.item.check{border-left:4px solid var(--warning-color,#e6a100)}
+      .item.playing{border-color:var(--accent-color,#ff9800);box-shadow:0 0 0 1px var(--accent-color,#ff9800)}
+      .item.playing [data-action="play"],.item.playing [data-action="play-selection"]{background:var(--accent-color,#ff9800);color:var(--text-primary-color,#fff)}
       .head{display:flex;justify-content:space-between;gap:8px;align-items:center}.badge{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--secondary-background-color)}
       .transcript{margin:4px 0;font-size:14px}.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
       .editor{margin-top:10px}.wave{width:100%;height:90px;display:block;background:var(--secondary-background-color);border-radius:8px}
@@ -295,13 +360,16 @@ class WakeWordCollectorCard extends HTMLElement {
       row.querySelector('[data-action="reject"]')?.addEventListener('click', () => this.review(item, 'reject'));
       row.querySelector('[data-action="extract"]')?.addEventListener('click', () => this.service('extract', {category: item.category, device: item.device, filename: item.filename}));
       row.querySelector('[data-action="edit"]').onclick = () => this.edit(item).catch(error => { this.message = error.message || String(error); this.render(); });
-      row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => this.playSelection().catch(error => { this.message = error.message || String(error); this.render(); }));
+      row.querySelector('[data-action="play-selection"]')?.addEventListener('click', () => {
+        if (this.playing?.key === this.editing?.key) { this.stopPlayback(); return; }
+        this.playSelection().catch(error => { this.message = error.message || String(error); this.render(); });
+      });
       row.querySelectorAll('[data-trim]').forEach(button => { button.onclick = () => this.trim(button.dataset.trim); });
       row.querySelectorAll('[data-edge]').forEach(input => {
         input.oninput = () => {
           const e = this.editing, value = Number(input.value);
           if (input.dataset.edge === 'start') e.start = Math.min(value, e.end - 0.05); else e.end = Math.max(value, e.start + 0.05);
-          row.querySelector('.wave').outerHTML = this.waveform();
+          row.querySelector('.editor .wave').outerHTML = this.waveform(e.key).replace(/<div class="muted">.*<\/div>$/, '');
           row.querySelector('[data-selection]').textContent = this.selectionText();
         };
       });
