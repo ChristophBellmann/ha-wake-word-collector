@@ -1,5 +1,14 @@
 # False alarms
 
+Für häufige Auslösungen während Gesprächen: Aufnahmen anhören, echte Aufrufe
+positiv freigeben und bestätigte Fehlalarme negativ markieren. Unklare Clips
+bleiben zur Prüfung stehen. Der Trainer kann Positive, Negative und ungeprüfte
+Auslösungen mit unabhängiger STT und einem separaten Teacher prüfen; beide
+ersetzen das Bestätigen eines unklaren Clips nicht. Eine leere Transkription
+beweist gerade bei gefilterten Mikrofonkanälen keinen Fehlalarm.
+Der [Ablauf gegen Telefon-Fehlaktivierungen](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/false-activations-workflow)
+erklärt Datenrollen, GPU-Vergleiche und das Beibehalten des Prüfbestands.
+
 With `wake_word_report_triggers: "true"` in the package vars, every satellite
 also reports its wake word activations outside collection mode: the last
 seconds before the detection, uploaded after the voice assistant finished.

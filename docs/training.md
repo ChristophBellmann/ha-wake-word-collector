@@ -37,6 +37,26 @@ To put the model into your ESPHome configurations and flash the satellites
 from Home Assistant, [roll it out](rollout.md), or turn on
 `switch.<wake word>_auto_rollout` to do that after every training.
 
+## GPU-Training und Benchmarks
+
+Der öffentliche Trainer kann GPU-Ausführung ausdrücklich verlangen und echte
+Durchsatzvergleiche auf denselben Features durchführen. Wenn im privaten
+`service.yaml` ein Benchmark-Profil eingerichtet ist, erscheint es in der
+vorhandenen Home-Assistant-Profilauswahl. Der Benchmark meldet kein neues Modell
+und löst keinen Rollout aus. Sein Bericht bleibt auf dem Trainingsrechner.
+
+Das Training-Sensorattribut `phase` erklärt CPU-Phasen wie Fetch, Feature-Bau
+und int8-Bewertung. Eine dabei ruhende GPU ist erwartbar; der Student selbst
+trainiert anschließend auf dem konfigurierten Gerät. Die gemeinsame
+GPU-Belegung des Trainers verhindert parallele Teacher-/Student-/Benchmark-
+Arbeit. Konfigurierte Pausendienste werden weiterhin vom Trainer verwaltet.
+
+Die [GPU-Anleitung](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/gpu-training-and-benchmarks)
+beschreibt Einrichtung, reproduzierbare Messungen und geprüfte Leistungswerte.
+Für Fehlalarme beim Telefonieren führt der
+[zusammenhängende Ablauf](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/false-activations-workflow)
+von der Aufnahme über Quellenprüfung und Training bis zum Modellvergleich.
+
 ## Unattended training
 
 For unattended training configure `automatic_training` in the public
