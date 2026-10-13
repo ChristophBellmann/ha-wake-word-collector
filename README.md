@@ -1,5 +1,7 @@
 # Wake Word Collector
 
+**Documentation:** [Manual](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/home-assistant-wake-word-collector/) · [All REDesign manuals](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/) · [redesign.network](https://redesign.network/)
+
 Record examples of **your own wake word** with **your own voice satellites**,
 in your rooms, with your voices, train a custom wake word model
 (microWakeWord, openWakeWord) and roll it out to the satellites, all from
@@ -50,7 +52,7 @@ Apache-2.0
 
 ## GitBook source and maintenance
 
-The [published project documentation](https://renewable-energy-design.gitbook.io/home-assistent-wake-word-collector/) is maintained through GitSync
+The [published project documentation](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/home-assistant-wake-word-collector/) is maintained through GitSync
 from `ChristophBellmann/ha-wake-word-collector` on `main`. Page sources live in
 [`docs/`](docs/README.md), with navigation in
 [`docs/SUMMARY.md`](docs/SUMMARY.md). `.gitbook.yaml` and
