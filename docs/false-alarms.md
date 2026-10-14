@@ -1,46 +1,32 @@
-# False alarms
+# Fehlalarme
 
-Für häufige Auslösungen während Gesprächen: Aufnahmen anhören, echte Aufrufe
-positiv freigeben und bestätigte Fehlalarme negativ markieren. Unklare Clips
-bleiben zur Prüfung stehen. Der Trainer kann Positive, Negative und ungeprüfte
-Auslösungen mit unabhängiger STT und einem separaten Teacher prüfen; beide
-ersetzen das Bestätigen eines unklaren Clips nicht. Eine leere Transkription
-beweist gerade bei gefilterten Mikrofonkanälen keinen Fehlalarm.
-Der [Ablauf gegen Telefon-Fehlaktivierungen](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/false-activations-workflow)
-erklärt Datenrollen, GPU-Vergleiche und das Beibehalten des Prüfbestands.
+Auslösungen während Gesprächen, TV oder Geräteansagen zunächst als Prüfclips
+behalten. Echte vollständige Aufrufe positiv freigeben; bestätigte Sprache oder
+Geräusche ohne Aufruf negativ markieren. Unklare Clips bleiben zur Prüfung.
+[Unabhängige STT und Teacher-Prüfung](independent-review.md) ergänzen das Anhören.
+Leere STT beweist gerade bei gefilterten Mikrofonkanälen keinen Fehlalarm.
 
-With `wake_word_report_triggers: "true"` in the package vars, every satellite
-also reports its wake word activations outside collection mode: the last
-seconds before the detection, uploaded after the voice assistant finished.
-In the card (view *Activations*) mark each one as *Was the wake word* (more
-real examples) or *False alarm*; or simply say *"I did not call you"* /
-*"Fehlalarm"* right after a wrong activation (intent for LLM agents, sentences
-in the blueprint). False alarms, clips marked *Not the wake word*, and command
-recordings without the wake word are exported as negatives: the next
-training learns to ignore exactly what woke your satellites up.
+Mit `wake_word_report_triggers: "true"` im Satellitenpaket werden auch außerhalb
+des Sammelmodus die letzten Sekunden vor einer Aktivierung erfasst. Der Puffer
+wird 300 ms nach Auslösung eingefroren und nach Ende von Assist hochgeladen,
+spätestens nach 20 Sekunden. Das verzögert die normale Antwort nicht. Der Clip
+enthält den auslösenden Ton, keinen nachträglich aufgenommenen leeren Raum.
 
-## Learn from activations without input
+In der Ansicht Auslösungen **War das Aktivierungswort** oder **Fehlalarm** wählen.
+Eine Sprachmeldung unmittelbar nach einer falschen Auslösung kann ebenfalls
+als Bestätigung dienen. Bestätigte Negative sind beim nächsten Training eine
+eigene Satellitenquelle; ein neues Modell muss trotzdem Regression bestehen.
 
-Enable the integration's **Learn from activations without input** switch
-(disabled by default). With the matching ESPHome package, a confirmed empty
-speech-to-text result (`stt-no-text-recognized`) marks the existing pre-trigger
-recording as `trigger_no_input`. The Collector stores it as a negative, with
-`auto_negative: true`, and exports it for training without manual review.
-Technical errors, disconnected satellites and ordinary unlabelled triggers
-continue to wait for review. Speaker-test recordings are excluded from learning.
+## Auslösungen ohne Eingabe
 
-The trigger clip keeps the last three seconds of the original buffer, including
-the sound that caused the activation; it does not record a later empty room.
-No command text is sent with these clips. They remain local in the Collector's
-private storage and can be reviewed like other negatives. Absence of a command
-is a useful learning signal, not proof that the wake word was never said: keep
-the trainer's held-out comparison enabled to prevent degraded models from
-reaching devices.
+Die Option zum Lernen aus Auslösungen mit leerer Eingabe ist standardmäßig aus.
+Das passende Paket meldet `trigger_no_input` nur bei bestätigtem leerem
+Assist-STT (`stt-no-text-recognized`). Bei aktivierter Option wird der vorhandene
+Puffer als negativ mit `auto_negative: true` gespeichert. Technische Fehler,
+Verbindungsabbrüche und normale ungeprüfte Auslösungen bleiben zur Prüfung.
+Lautsprechertests sind vom Lernen ausgeschlossen.
 
-The ESPHome package keeps the last seconds of microphone audio in a ring
-buffer (`wake_word_max_duration`); on a detection it waits 300 ms for the end
-of the wake word, freezes the buffer and uploads it after the voice assistant
-finished (at the latest after 20 s), so answering is never delayed.
-
-Die [unabhängige Prüfung](independent-review.md) startet aus der Karte und
-zeigt STT, Student- und Teacher-Ergebnisse als Vorschläge zum Anhören.
+Kein nachfolgender Befehl ist ein Signal, aber kein Beweis für fehlendes
+Aktivierungswort. Die optionale Funktion bleibt getrennt von der stärkeren
+Workstation-Prüfung; der gemeinsame Prüfbestand verhindert schlechtere
+Modellfreigaben.

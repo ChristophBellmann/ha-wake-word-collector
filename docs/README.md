@@ -1,57 +1,48 @@
 # Wake Word Collector
 
-Record examples of **your own wake word** with **your own voice satellites**,
-in your rooms, with your voices, train a custom wake word model
-(microWakeWord, openWakeWord) and roll it out to the satellites, all from
-Home Assistant.
+Eigene Aktivierungswort-Aufnahmen mit den Mikrofonen der ESPHome-Satelliten
+sammeln, in Home Assistant anhören und bestätigen, auf der Workstation trainieren
+und ein geprüftes Modell auf die Geräte ausrollen.
 
-![Review card: recordings to check, waveform editor](images/review-card.png)
+![Aufnahmekarte mit Prüfung und Wellenformeditor](images/review-card.png)
 
-The way through:
+```mermaid
+flowchart TD
+  S[ESPHome-Satelliten] --> A[HA: Aufnahmen und Auslösungen]
+  A --> C[Collector-Karte]
+  C --> R[Unabhängige STT und optionaler Teacher]
+  R --> L[Nachvollziehbare Datenlabels]
+  L --> T[Workstation: GPU-Training]
+  T --> P[int8-Modell, Parity und Regression]
+  P --> C
+  C --> B[ESPHome Device Builder]
+  B --> S
+```
 
-1. [Install](installation.md) the integration and add the
-   [ESPHome package](satellites.md) to every satellite.
-2. Record by [voice](voice-commands.md) or from the GUI, check the clips on the
-   [review card](review-card.md), and let [false alarms](false-alarms.md)
-   become training data.
-3. [Train](training.md) with the Wake Word Trainer service, started and
-   followed in Home Assistant.
-4. [Roll out](rollout.md) the new model: Home Assistant writes it into your
-   ESPHome configurations and installs it on every satellite through the
-   ESPHome Device Builder.
-5. Measure a satellite with the [loudspeaker test](loudspeaker-test.md).
+## Ablauf
 
-## How it works
+1. [Integration installieren](installation.md) und [Satellitenpaket](satellites.md) einbinden.
+2. Per [Sprache](voice-commands.md) oder [Karte](review-card.md) aufnehmen.
+3. [Auslösungen prüfen](independent-review.md), echte Aufrufe freigeben und bestätigte [Fehlalarme](false-alarms.md) als Negative verwenden.
+4. [Training starten](training.md) und das Ergebnis am getrennten Prüfbestand vergleichen.
+5. Nur nach Freigabe [ausrollen](rollout.md); [Lautsprechertests](loudspeaker-test.md) prüfen die reale Strecke.
 
-1. You say *"record the wake word"* to a satellite.
-2. That satellite switches to collection mode. Its voice assistant keeps
-   listening; every utterance is recorded from the satellite's own microphone
-   (including the moment before listening started) and uploaded to Home
-   Assistant together with the speech-to-text result.
-3. You say only the wake word, as often as you like, also several times in one
-   breath: *"Hey Jarvis, Hey Jarvis"* becomes two separate clips, split at the
-   quietest point. The wake word is never split into single words.
-4. Home Assistant sorts every clip:
+Der Sammelmodus hält Assist offen. Reine Aktivierungswort-Wiederholungen werden
+als einzelne vollständige Phrasen gespeichert, ohne Wörter zu trennen.
+Ungewöhnliche Transkripte bleiben zur Prüfung erhalten. Befehls- und
+Qualitätsaufnahmen werden separat geführt. Der Wellenformeditor sichert
+Originale vor jedem Schnitt.
 
-   | Category | When |
-   | --- | --- |
-   | **usable** (`candidates`) | the transcript is only the wake word or an accepted variant |
-   | **to check** (`needs_review`) | anything else: an unusual pronunciation is kept, not lost |
-   | command (`control`) | contains a command word such as "done" |
-   | rejected (`rejected_quality`) | too quiet, clipped or with DC offset, or rejected by you; kept for recovery |
-   | not the wake word (`negatives`) | marked by you: the model learns to ignore it |
-   | activation (`triggers`) | optional: what a satellite heard right before it woke up, to judge |
+| Kategorie | Zweck |
+| --- | --- |
+| `candidates` | verwendbare positive Aufnahmen |
+| `needs_review`, `rejected_transcript` | ungeprüfte Aufnahmen |
+| `triggers` | Ton unmittelbar vor einer gemeldeten Auslösung |
+| `negatives` | bestätigte Sprache/Geräusche ohne Aktivierungswort |
+| `control` | erkannte Steuerbefehle |
+| `rejected_quality` | Qualitätsprobleme oder Ablehnung; zur Wiederherstellung behalten |
 
-5. *"I am done"* ends collection mode. *"The last one was bad, a car drove by"*
-   rejects the last clip (or just notes the noise).
-6. On the **review card** you listen, accept or reject, and trim clips in a
-   waveform editor (keep, delete or extract a selection as a new clip).
-   Originals are backed up before every edit.
-7. [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
-   fetches the usable clips through a token-protected export, trains a
-   microWakeWord model, measures it on your held-out recordings and exports
-   it for `micro_wake_word` on the satellites.
-
-Deutsch: [Überblick auf Deutsch](deutsch.md).
-
-[Auslösungen direkt in Home Assistant prüfen](independent-review.md) verbindet unabhängige STT und optionale Teacher-Bewertungen mit der Collector-Karte.
+Stimmdaten, Texte und persönliche Installationshistorien bleiben privat.
+Die öffentliche Anleitung verwendet neutrale Beispiele und erklärt Funktionen
+auf Deutsch. [Datenschutz](privacy.md) und [Referenz](reference.md) erläutern
+Speicherung, Dienste und Entitäten.

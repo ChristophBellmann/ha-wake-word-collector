@@ -1,28 +1,28 @@
-# Summary
+# Übersicht
 
-* [Overview](README.md)
+* [Überblick](README.md)
 
 ## Setup
 
-* [Installation and setup](installation.md)
-* [Satellites (ESPHome)](satellites.md)
-* [Voice commands](voice-commands.md)
+* [Installation und Einrichtung](installation.md)
+* [Satelliten mit ESPHome](satellites.md)
+* [Sprachbefehle](voice-commands.md)
 
-## Recording
+## Aufnahmen
 
-* [Review card and GUI recording](review-card.md)
-* [False alarms](false-alarms.md)
+* [Aufnahmekarte und Wellenformeditor](review-card.md)
+* [Fehlalarme](false-alarms.md)
 * [Auslösungen mit STT und Teacher prüfen](independent-review.md)
 
-## Model
+## Modell
 
-* [Training](training.md)
-* [Roll out to the satellites](rollout.md)
-* [Loudspeaker test](loudspeaker-test.md)
+* [Training über Home Assistant](training.md)
+* [Modell auf Satelliten ausrollen](rollout.md)
+* [Lautsprechertest](loudspeaker-test.md)
 
-## Reference
+## Referenz
 
-* [Services and entities](reference.md)
-* [Privacy and storage](privacy.md)
-* [Development](development.md)
+* [Dienste und Entitäten](reference.md)
+* [Datenschutz und Speicherung](privacy.md)
+* [Entwicklung](development.md)
 * [Deutsch](deutsch.md)

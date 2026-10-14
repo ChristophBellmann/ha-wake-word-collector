@@ -1,6 +1,6 @@
-# Satellites (ESPHome)
+# Satelliten mit ESPHome
 
-Add to every satellite's configuration, with your IDs:
+Das Paket in jedes Gerät einbinden, dessen reale IDs verwenden:
 
 ```yaml
 packages:
@@ -10,32 +10,33 @@ packages:
     files:
       - path: esphome/wake-word-collection.yaml
         vars:
-          wake_word_device: kitchen-satellite     # lower case, - and _
-          wake_word_url: http://homeassistant.local:8123/api/wake_word_collector/clips/hey_jarvis
+          wake_word_device: kitchen-satellite
+          wake_word_url: http://homeassistant.local:8123/api/wake_word_collector/clips/my_word
           wake_word_token: !secret wake_word_token
-          wake_word_command_entity: sensor.hey_jarvis_satellite_command
-          wake_word_microphone_id: i2s_mics       # your microphone
-          wake_word_microphone_channel: "0"       # the channel micro_wake_word uses
-          wake_word_microphone_gain: "1"          # and its gain_factor
-          wake_word_va_id: va                     # your voice_assistant
+          wake_word_command_entity: sensor.my_word_satellite_command
+          wake_word_microphone_id: i2s_mics
+          wake_word_microphone_channel: "0"
+          wake_word_microphone_gain: "1"
+          wake_word_va_id: va
           wake_word_media_player_id: external_media_player
 ```
 
-The package adds the recorder component, *Start/Stop wake word collection*
-buttons and a *Wake word collection* status. The satellite needs no
-permission to perform Home Assistant actions: it only reads the command
-sensor and uploads over HTTP. If your Home Assistant only speaks HTTPS with a
-private CA, add the CA to the satellite or use the local HTTP URL. To pin a
-version, set `ref:` above and `wake_word_components:
-github://ChristophBellmann/ha-wake-word-collector@<version>`.
+Gerätekennungen sind klein geschrieben und erlauben Bindestrich sowie
+Unterstrich. Das Paket liefert Aufnahme-Start/-Stopp, Sammelstatus und
+Auslösungszähler. Das Gerät liest den Befehlssensor und lädt per HTTP hoch;
+es braucht dafür keine Berechtigung zum Ausführen von HA-Aktionen.
 
-Use the same microphone, channel and `gain_factor` as your `micro_wake_word`
-configuration. On a satellite whose wake word engine listens on another
-channel than the voice assistant (a Satellite1 often uses channel 1 with a
-gain for the wake word and channel 0 for speech), the defaults would record a
-different signal than the one the model judged: false alarms could not be
-explained from the clips, and collected examples would not match what the
-model hears.
+Mikrofon, Kanal und Gain müssen genau dem Wakeword-Pfad entsprechen.
+Assist kann einen anderen Kanal oder Filter verwenden. Wird stattdessen
+Assist-Audio aufgenommen, passt der Clip nicht zum Signal, auf das das
+Wakeword-Modell reagiert hat. Das erschwert Fehlalarmprüfung und Training.
 
-For reports of every activation (false alarms as training data) see
-[False alarms](false-alarms.md).
+Private HTTPS-Zertifikate müssen auf dem Gerät vertraut sein; alternativ die
+lokale HTTP-Adresse verwenden. Für eine feste Version sowohl `ref` als auch
+`wake_word_components: github://ChristophBellmann/ha-wake-word-collector@<version>`
+auf denselben Stand setzen.
+
+`wake_word_report_triggers: "true"` aktiviert Aufnahmen unmittelbar vor
+Auslösungen außerhalb des Sammelmodus. [Fehlalarme](false-alarms.md) erklären
+Puffer, Upload und Prüfung. Das Modell wird erst durch einen separat geprüften
+[Rollout](rollout.md) ersetzt.

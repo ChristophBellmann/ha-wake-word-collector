@@ -1,56 +1,50 @@
-# Review card and recording from the GUI
+# Aufnahmekarte und Wellenformeditor
 
-The card is loaded automatically; add `type: custom:wake-word-collector-card`
-to a dashboard. Texts follow your Home Assistant language (English, German).
+Die Karte wird automatisch geladen. Mit
+`type: custom:wake-word-collector-card` einem Dashboard hinzufügen. Texte
+folgen der HA-Sprache; Deutsch ist vollständig enthalten.
 
-In the card you listen, accept or reject, and trim clips in a waveform editor
-(keep, delete or extract a selection as a new clip). Originals are backed up
-before every edit.
+Aufnahmen anhören, bestätigen, ablehnen oder als Fehlalarm markieren.
+Abspielen öffnet eine Wellenform mit laufender Positionsmarke. Der aktive Clip
+ist hervorgehoben, sein Knopf stoppt die Wiedergabe. Sehr leise Wellenformen
+werden sichtbar vergrößert und mit Faktor gekennzeichnet; das Audio bleibt
+unverändert. Der Editor kann Bereiche behalten, entfernen oder als neuen Clip
+ausschneiden; Originale werden vorher gesichert.
 
-**Play** opens the clip's waveform with a playhead that follows the audio; the
-playing clip is outlined and its button turns into **Stop**. **Play selection**
-in the editor shows the same playhead. Very quiet clips, for example from a
-noise-suppressed wake word channel, are drawn enlarged so faint speech stays
-visible; the card states the factor. Only the drawing is scaled, not the audio.
+```mermaid
+flowchart TD
+  A[Aufnahme oder Auslösung] --> P[Anhören und optionale unabhängige Prüfung]
+  P --> Q{Vollständiger Aufruf hörbar?}
+  Q -->|Ja| Y[Positiv freigeben]
+  Q -->|Nein| N[Als Fehlalarm bestätigen]
+  Q -->|Unklar| U[Zur Prüfung behalten]
+  Y --> T[Training beim nächsten Abruf]
+  N --> T
+```
 
-## Direct microphone recording
+## Aufnahme ohne Sprachbefehl
 
-For a GUI microphone test without Assist or the training computer, call
-`wake_word_collector.record` with the satellite's `device` identifier: once to
-start, again to stop and save; `wake_word_collector.stop` also saves.
-Recording continues until stopped. Long sessions are split into segments of
-`wake_word_manual_duration` (default 30 seconds, configurable up to 120
-seconds), preserving the beginning of each segment. The clip has no transcript
-until optional workstation recognition runs: listen under **To check** and
-accept extracted examples manually. Quality warnings remain visible and clips
-wait for manual acceptance. This requires the matching ESPHome package.
+`wake_word_collector.record` mit Gerätekennung startet oder beendet eine
+Mikrofonaufnahme. `stop` beendet und speichert ebenfalls. Lange Aufnahmen
+werden anhand `wake_word_manual_duration` segmentiert, standardmäßig 30,
+höchstens 120 Sekunden. Zwischen Segmenten entstehen kurze Upload-Pausen.
+Die ganze Segmentaufnahme bleibt erhalten, auch vor der ersten Spracherkennung.
 
-The card updates when recordings change; optional `recordings_entity` selects
-the statistics sensor and `device_names` maps device identifiers to room names.
+## Unabhängige Prüfung und Extraktion
 
-## Automatic extraction from manual recordings
+[Aufnahmen prüfen](independent-review.md) startet ein konfiguriertes Trainer-
+Prüfprofil. Die Karte zeigt danach unabhängige STT, Student-/Teacher-Antworten
+und Vorschläge. Das ist noch kein bestätigtes Trainingslabel.
 
-With an updated Wake Word Trainer and its optional `segment` extra installed,
-enable `extraction.enabled: true` in the trainer service configuration. New
-manual microphone recordings are then processed in the background: complete
-configured wake-word phrases and variants become individual clips under
-**To check**. The original recording is kept byte for byte. No clip is accepted
-for training automatically. Listen and accept only suitable examples.
+Für lange manuelle Aufnahmen kann der Trainer mit `segment`-Extra und
+`extraction.enabled: true` vollständige konfigurierte Phrasen ausschneiden.
+Die Karte bietet automatische Extraktion neuer manueller Aufnahmen und einen
+Knopf für bestehende Clips oder Wiederholungen. Originale bleiben unverändert;
+Ausschnitte warten auf Freigabe. Fehler und fehlende Treffer bleiben sichtbar,
+unterbrochene Arbeit wird beim Laden fortgesetzt. Erfolgreiche Wiederholungen
+erzeugen keine identischen Duplikate.
 
-The card offers **Automatically extract new microphone recordings** (persisted
-per collector) and **Extract wake words** on saved manual clips, also for older
-recordings and retries. Progress, no matches and workstation errors appear on
-the original. Interrupted work resumes on integration reload; unavailable
-workstations leave the original playable and a retry button. Successfully
-processed originals reuse their clips on retries instead of duplicating them.
-The `extract` and `auto_extract` services expose the same actions.
-
-Phrase and variants come from the Collector configuration; model, language,
-padding and confidence are workstation configuration. Recognition does not use
-the satellite's wake-word model and does not require it to detect your examples.
-Allow roughly one second between repetitions. Recognition can miss difficult
-pronunciations; manual editing remains available. Long sessions retain the
-ESPHome package's segment boundaries and short upload pauses.
-
-Die [unabhängige Prüfung](independent-review.md) startet aus der Karte und
-zeigt STT, Student- und Teacher-Ergebnisse als Vorschläge zum Anhören.
+`recordings_entity` kann den Statistik-Sensor auswählen, `device_names` ordnet
+Kennungen Anzeigenamen zu. Aufnahmestand und neue Analyseberichte aktualisieren
+die Karte ohne manuelles Neuladen. Die Dienste `extract` und `auto_extract`
+bieten dieselben Extraktionsaktionen.

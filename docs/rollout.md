@@ -1,133 +1,88 @@
-# Roll out a model to the satellites
+# Modell auf Satelliten ausrollen
 
-Training, review and flashing stay in Home Assistant: the integration puts a
-new model into your ESPHome configurations (see below) and installs it on
-every satellite through the **ESPHome Device Builder** (the ESPHome add-on or
-dashboard), one after the other. A satellite counts as done only when it is
-back in Home Assistant with a new firmware compilation time.
+Training, Prüfung und Installation bleiben in Home Assistant. Die Integration
+schreibt das freigegebene Modell in ESPHome-Konfigurationen und baut und
+installiert Geräte nacheinander über den ESPHome Device Builder. Ein Gerät ist
+erst geprüft, wenn es mit der erwarteten neuen Kompilierungszeit zurückkehrt.
 
-1. Put a rollout configuration ([example](../esphome/model_update.example.yaml))
-   next to your ESPHome configurations, e.g. `/config/esphome/wake-word-model.yaml`
-   with the ESPHome add-on. Device files are relative to it and must be the
-   configuration names the Device Builder shows.
-2. Under *Configure*, enter it as *Model rollout configuration* (relative to
-   the Home Assistant configuration folder, e.g. `esphome/wake-word-model.yaml`).
-   *ESPHome Device Builder* may stay empty with the add-on (the one the ESPHome
-   integration knows is used); otherwise enter its address, e.g.
-   `http://127.0.0.1:6052`. Home Assistant must be able to write the
-   configuration folder and the Device Builder must see the same files.
-3. Press `button.<wake word>_rollout_model`, or turn on
-   `switch.<wake word>_auto_rollout` to roll out every model taken over from
-   the trainer.
+## Einrichtung
 
-`sensor.<wake word>_rollout` shows idle, running, completed, failed or
-blocked, with the device being built, the step (compiling, installing,
-verifying) and the result per device. `wake_word_collector.rollout_model`
-does the same as the button; with `dry_run: true` it only returns the new
-sensitivity steps per device. With `require_parity: true` a model without a
-passed trainer comparison is *blocked* and nothing is written. A failed
-device does not stop the others; rolling out again retries only the devices
-not verified for this model (progress in `<storage>/model/rollout.json`). The
-event `wake_word_collector_rollout_finished` and a notification report the
-result. Commit the changed configurations yourself if you keep them in git.
+Eine [Rollout-Konfiguration](../esphome/model_update.example.yaml) neben den
+ESPHome-Dateien anlegen, beispielsweise `esphome/wake-word-model.yaml`.
+Gerätedateien sind relativ dazu und müssen genau den im Builder bekannten
+Konfigurationsnamen entsprechen. In den Collector-Optionen diesen Pfad angeben.
+Beim Add-on kann die Builder-Adresse leer bleiben; bei eigenem Dienst dessen
+Adresse eintragen, zum Beispiel `http://127.0.0.1:6052`.
 
-## How a rollout runs
+HA braucht Schreibzugriff und der Builder muss dieselben Dateien sehen.
+`button.<slug>_rollout_model` startet, `switch.<slug>_auto_rollout` aktiviert den
+Rollout jedes übernommenen geprüften Modells. `require_parity: true` verlangt
+einen bestandenen Trainervergleich für den exakten Modellhash.
 
-1. **Check and plan.** The rollout configuration is read, the model taken
-   over from the trainer is loaded from the entry's storage folder
-   (`<storage>/model/`) and, with `require_parity: true`, its trainer
-   comparison is checked against the model's SHA256. The new file name,
-   the model substitution and the sensitivity steps of every device are
-   computed. Nothing is written yet; `dry_run: true` stops here and returns
-   this plan.
-2. **Write.** The model is copied to `<models>/<name>.tflite` and `.json`,
-   and the changed device configurations are written.
-3. **Build and install,** device by device: compile in the Device Builder,
-   install over the air to the device's `address` (or its mDNS name). Devices
-   already verified for exactly this model, configuration and address are
-   skipped.
-4. **Verify.** The device must reconnect to Home Assistant running the
-   firmware the compiler just reported (`build_time_str`), within five
-   minutes. This also holds when nothing had to be recompiled. Without a
-   reported build time, any compilation time other than the one before the
-   install counts. The device is found by its node name, also with the MAC
-   suffix of `name_add_mac_suffix`. A device without an ESPHome entry in Home
-   Assistant counts as installed, not checked.
-5. **Report.** `sensor.<wake word>_rollout`, the event
-   `wake_word_collector_rollout_finished` and a notification carry the result.
-
-## ESPHome Device Builder in Docker
-
-With the ESPHome add-on there is nothing to set up. A Device Builder in its
-own container needs:
-
-- The same configuration folder Home Assistant writes to, ideally under the
-  same path in both containers, so the device paths in the rollout
-  configuration mean the same file everywhere.
-- Its own build folder (mount `/build`), unless only this container ever
-  builds these configurations: ESP-IDF build folders of another ESPHome
-  installation (e.g. a Python virtualenv on the host) cannot be shared.
-- All secrets the device configurations use in its `secrets.yaml`.
-
-```yaml
-services:
-  esphome:
-    image: ghcr.io/esphome/esphome:2026.9.1
-    network_mode: host
-    user: "1000:1000"
-    environment:
-      - HOME=/cache/home
-    command: [dashboard, --host, 127.0.0.1, --port, "6052", /srv/esphome]
-    volumes:
-      - ./esphome:/srv/esphome
-      - ./esphome/.esphome:/cache
-      - ./esphome/.esphome/docker-build:/build
+```mermaid
+flowchart TD
+  M[Übernommenes Modell] --> P[Hash, Parity und Geräteplan prüfen]
+  P -->|Fehler| B[Blockiert: keine Dateien ändern]
+  P -->|Bestanden| W[Modell und Konfigurationen schreiben]
+  W --> C[Gerät kompilieren]
+  C --> I[OTA installieren]
+  I --> V[HA-Rückkehr und Buildzeit prüfen]
+  V --> N[Nächstes Gerät]
+  N --> C
+  V --> R[Ergebnis je Gerät speichern]
 ```
 
-ESPHome 2026.9 and newer may start a *version history* that creates a git
-repository in the configuration folder; turn it off in the Device Builder's
-settings if that folder is part of another repository.
+## Ablauf und Wiederholung
 
-## Troubleshooting
+`dry_run: true` liefert nur Plan und Empfindlichkeitsstufen. Danach werden
+TFLite und Manifest kopiert und Gerätedateien geändert. Der Builder kompiliert
+und installiert über die konfigurierte Adresse oder mDNS. Bereits für genau
+dieses Modell, diese Konfiguration und Adresse geprüfte Geräte werden übersprungen.
 
-| Result per device | Meaning |
+Die Prüfung wartet bis zu fünf Minuten auf Rückkehr mit der vom Builder
+gemeldeten `build_time_str`. Auch ein wiederverwendeter Build muss passen.
+Fehlt eine genaue Builder-Zeit, muss sich die vorherige Kompilierungszeit ändern.
+Ohne ESPHome-Eintrag gilt ein Gerät nur als installiert, nicht als geprüft.
+Ein Gerätefehler verhindert nicht die weiteren Geräte; Wiederholung bearbeitet
+nur noch ungeprüfte Geräte. Ein HA-Neustart unterbricht einen laufenden Rollout.
+
+`sensor.<slug>_rollout`, das Ereignis `wake_word_collector_rollout_finished`
+und eine Benachrichtigung enthalten den Stand. Private Details und letzte
+Builder-Logzeilen liegen unter `<storage>/model/rollout.json`.
+Geänderte ESPHome-Dateien und Modelle bei eigener Git-Verwaltung separat sichern.
+
+## Builder in Docker
+
+Das Add-on braucht keine weitere Einrichtung. Ein eigener Container benötigt
+denselben Konfigurationsbestand und alle Secrets sowie einen eigenen `/build`-
+Ordner. Build-Dateien unterschiedlicher ESPHome-Installationen nicht teilen.
+Identische Pfade in beiden Containern erleichtern relative Dateizuordnung.
+ESPHome-Version-Historie deaktivieren, wenn deren Konfigurationsordner bereits
+Teil eines anderen Git-Repositories ist.
+
+## Fehler eingrenzen
+
+| Meldung | Prüfen |
 | --- | --- |
-| `not in the ESPHome Device Builder` | the file is not among the Device Builder's configurations: device paths must be relative to the rollout configuration, which must lie in the Device Builder's folder |
-| `compile failed` / `install failed` | the last lines of the build log are in `<storage>/model/rollout.json` (also when a compile takes longer than 60 minutes or an install longer than 15 minutes) |
-| `ESPHome Device Builder not reachable` | address in the options, or the add-on is not running |
-| `not verified` | the install reported success, but the device did not come back with the firmware just built within five minutes |
+| Gerät nicht im Builder | relativer Pfad und dessen Konfigurationsliste |
+| Kompilierung oder Installation fehlgeschlagen | letzte Logzeilen; Zeitlimits für Build und Installation |
+| Builder nicht erreichbar | Optionen, laufender Dienst und Netzwerkzugriff |
+| Nicht geprüft | tatsächliche HA-Rückkehr mit erwartetem Firmware-Build |
+| Blockiert | Modellhash und bestandene Parity; es wurde nichts geschrieben |
 
-*Blocked* means nothing was written: usually no passed parity test for this
-model. A restart of Home Assistant during a rollout stops it; roll out again
-to continue with the devices not yet verified.
+## Kommandozeile
 
-## On the command line
+[model_update.py](../esphome/model_update.py) verwendet dieselbe Planung.
+`{hash}` im Modellnamen verhindert Kollisionen. Für einen vom Trainer gestarteten
+Rollout `--expected-sha256 {sha256} --wait 120 --build` verwenden, damit genau
+dieses Modell und dessen Vergleich vorliegen.
 
-If your satellites keep their models as files next to their configurations
-(and set their sensitivity steps with `set_probability_cutoff`),
-[esphome/model_update.py](../esphome/model_update.py) (the same code the
-integration uses for its rollout) does the whole switch,
-driven by a small YAML file
-([example](../esphome/model_update.example.yaml)): it copies the model, sets the
-model substitution of every listed device, derives the sensitivity steps from
-the trainer's evaluation (the chosen cutoff, and the most sensitive cutoffs
-with at most 2x and 5x as many false activations per hour), and with
-`--build` runs your build command for every device not yet verified for this model.
-The command must return success only after verifying the running firmware.
-Progress is kept in `source/rollout.json`; rerunning `--build` retries failed
-devices and skips successful ones. A failure does not prevent the other devices
-from updating. `--commit` commits only after all requested builds succeed.
-
-Set `require_parity: true` to accept only a model with a passed trainer
-comparison for its SHA256. `{hash}` in `name` avoids collisions between runs
-on the same day. For automatic deployment from the trainer use
-`--expected-sha256 {sha256} --wait 120 --build`: the tool waits for the
-collector to receive that exact model and its comparison. Keep your device
-paths, flash command and credentials in your local configuration.
-
-```sh
+```bash
 python3 model_update.py --config wake-word-model.yaml --dry-run
 python3 model_update.py --config wake-word-model.yaml --build
 ```
 
-Run it with the Python that has ESPHome installed (it needs PyYAML).
+Der Build-Befehl darf nur nach tatsächlicher Firmware-Prüfung Erfolg melden.
+Fortschritt liegt in `source/rollout.json`; erfolgreiche Geräte werden bei
+Wiederholung ausgelassen. `--commit` committet erst nach Erfolg aller Builds.
+Gerätepfade, Zugangsdaten und konkrete Installationshistorie bleiben privat.

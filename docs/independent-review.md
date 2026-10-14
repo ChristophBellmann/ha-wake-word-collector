@@ -80,5 +80,5 @@ die Workstation pausiert dafür keine GPU-Dienste. Training und Benchmarks
 nutzen weiterhin ihre GPU-Profile. Speicher-/CPU-Prüfung und die Sperre gegen
 einen zweiten Lauf desselben Trainer-Dienstes bleiben wirksam.
 
-Die vollständige [Trainer-Anleitung zur HA-Prüfung](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/home-assistant-review)
+Die vollständige [Trainer-Anleitung zur HA-Prüfung](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/home-assistant/home-assistant-review)
 beschreibt Snapshots, Konfiguration, lokale gezielte Abrufe und Fehlerfälle.

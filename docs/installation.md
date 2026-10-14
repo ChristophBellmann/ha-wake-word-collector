@@ -1,33 +1,31 @@
-# Installation and setup
+# Installation und Einrichtung
 
-## Requirements
+Benötigt werden Home Assistant ab 2025.4, eine Assist-Spracherkennung und
+ESPHome-Satelliten mit `voice_assistant`, `micro_wake_word`, Mediaplayer und
+`http_request`. Übliche ESP32-S3-Geräte benötigen PSRAM; Mikrofonaudio muss
+16 oder 48 kHz liefern.
 
-- Home Assistant 2025.4 or newer; a voice pipeline with speech-to-text.
-- ESPHome voice satellites with `voice_assistant`, `micro_wake_word`, a media
-  player and `http_request` (the usual voice satellites based on ESP32-S3 with
-  PSRAM). The microphone must deliver 16 or 48 kHz.
+HACS → Menü → Benutzerdefinierte Repositories:
+`https://github.com/ChristophBellmann/ha-wake-word-collector`, Kategorie
+Integration. Wake Word Collector installieren, Konfiguration prüfen und
+Home Assistant neu starten.
 
-## Installation
+Unter Einstellungen → Geräte & Dienste die Integration hinzufügen:
 
-HACS → ⋮ → *Custom repositories* →
-`https://github.com/ChristophBellmann/ha-wake-word-collector`, category
-*Integration*. Install *Wake Word Collector*, restart Home Assistant.
+| Einstellung | Bedeutung |
+| --- | --- |
+| Aktivierungswort | vollständige Phrase entsprechend der gewünschten STT-Schreibweise |
+| Zusätzliche Varianten | zulässige andere Transkriptionen, durch Komma getrennt |
+| Steuerwörter | Aufnahmebefehle, die getrennt gespeichert werden |
+| Speicherordner | standardmäßig `<config>/wake_word_collector/<slug>` |
 
-## Add the integration
+Der nächste Schritt zeigt Upload-URL, privaten Collector-Token und
+Befehlssensor für die Satelliten. Diese Angaben bleiben unter Konfigurieren
+verfügbar. [Satellitenpaket](satellites.md) mit passenden Mikrofon-IDs,
+Kanal und Verstärkung einbinden.
 
-*Settings → Devices & services → Add integration → Wake Word Collector*:
-
-- **Wake word** as your speech-to-text writes it, e.g. `Hey Jarvis`.
-- **Also counts as the wake word**: transcriptions that are fine too, comma
-  separated, e.g. `hey jarvas, hi jarvis`. A trailing "n"/"s" on longer words
-  ("Jarvisn") is accepted anyway.
-- **Command words**: recordings containing them are kept apart.
-- **Storage folder**: default `<config>/wake_word_collector/<wake word>`.
-
-The next step shows the **upload URL**, a **token** and the **command sensor**
-for the satellites. They are shown again under *Configure*.
-
-To record from the GUI without a voice command, see
-[Review card and GUI recording](review-card.md).
-
-Next: [add the ESPHome package to your satellites](satellites.md).
+Für STT-/Teacher-Prüfung und Training zusätzlich den öffentlichen
+[Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
+auf der Workstation einrichten. Adresse und separaten Trainer-Token in den
+Collector-Optionen hinterlegen. [Unabhängige Prüfung](independent-review.md)
+beschreibt das Prüfprofil und den Knopf in der Karte.

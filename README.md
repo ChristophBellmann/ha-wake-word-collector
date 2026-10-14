@@ -1,70 +1,61 @@
-# Wake Word Collector
+# Home Assistant Wake Word Collector
 
-**Documentation:** [Manual](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/home-assistant-wake-word-collector/) · [All REDesign manuals](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/) · [redesign.network](https://redesign.network/)
+Eine öffentliche Home-Assistant-Integration für eigene Aktivierungswort-
+Aufnahmen mit ESPHome-Satelliten: sammeln, anhören, prüfen, trainieren und ein
+freigegebenes Modell ausrollen. Die Mikrofonaufnahmen entsprechen dem
+Wakeword-Kanal der Geräte.
 
-Record examples of **your own wake word** with **your own voice satellites**,
-in your rooms, with your voices, train a custom wake word model
-(microWakeWord, openWakeWord) and roll it out to the satellites, all from
-Home Assistant.
+[Handbuch](docs/README.md) · [Einrichtung](docs/installation.md) ·
+[Aufnahmekarte](docs/review-card.md) · [Unabhängige Prüfung](docs/independent-review.md) ·
+[Rollout](docs/rollout.md)
 
-![Review card: recordings to check, waveform editor](docs/images/review-card.png)
+```mermaid
+flowchart LR
+  S[Satellitenmikrofon] --> C[Collector in Home Assistant]
+  C --> P[Anhören, STT und optionaler Teacher]
+  P --> L[Bestätigte Positive und Negative]
+  L --> T[Öffentlicher Trainer auf Workstation]
+  T --> R[Regression und Parity]
+  R --> B[ESPHome Device Builder]
+  B --> S
+```
 
-- **Record** by voice ("record the wake word" … "I am done") or from the GUI;
-  Home Assistant sorts every clip by its transcript.
-- **Review** on a dashboard card: listen, accept, reject, trim.
-- **Learn from false alarms**: satellites report what woke them up; say
-  "false alarm" and the next training learns to ignore it.
-- **Train** with the [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
-  service, started and followed in Home Assistant.
-- **Roll out** the new model: written into your ESPHome configurations and
-  installed on every satellite through the ESPHome Device Builder, verified
-  per device.
+## Einrichtung
 
-## Documentation
+HACS → Benutzerdefinierte Repositories →
+`https://github.com/ChristophBellmann/ha-wake-word-collector`, Kategorie
+Integration. Installieren, HA-Konfiguration prüfen und neu starten.
+Unter Einstellungen → Geräte & Dienste Wake Word Collector hinzufügen.
+Die Optionen liefern Upload-URL, privaten Token und Befehlssensor.
+Das [ESPHome-Paket](docs/satellites.md) mit eigenen IDs, Mikrofonkanal und Gain
+in jedes Gerät einbinden.
 
-The full documentation is in [docs/](docs/README.md) (also as a GitBook):
+`type: custom:wake-word-collector-card` zeigt Aufnahmen, Kategorien,
+Wellenformeditor und Prüfhinweise an. Sprachbefehle oder GUI-Aufnahme starten
+die Sammlung. Reine Wiederholungen werden in vollständige Aufrufe geteilt,
+Originale vor Schnitten gesichert. Unklare Clips bleiben zur Prüfung erhalten.
 
-[Installation](docs/installation.md) ·
-[Satellites](docs/satellites.md) ·
-[Voice commands](docs/voice-commands.md) ·
-[Review card](docs/review-card.md) ·
-[False alarms](docs/false-alarms.md) ·
-[Training](docs/training.md) ·
-[Roll out](docs/rollout.md) ·
-[Loudspeaker test](docs/loudspeaker-test.md) ·
-[Services and entities](docs/reference.md) ·
-[Privacy](docs/privacy.md) ·
-[Development](docs/development.md) ·
-[Deutsch](docs/deutsch.md)
+## Training und Fehlalarme
 
-## Quick start
+Der öffentliche [Wake Word Trainer](https://github.com/ChristophBellmann/wake-word-trainer)
+bietet auf der Workstation Profile, Status und Modelle an. Adresse und
+Trainer-Token in den Collector-Optionen eintragen. Der vorhandene Collector-
+Token erlaubt ihm bestätigte Daten und getrennt davon ungeprüfte Prüfclips
+abzurufen; SSH und sudo werden für diesen Ablauf nicht benötigt.
 
-1. HACS → ⋮ → *Custom repositories* →
-   `https://github.com/ChristophBellmann/ha-wake-word-collector`, category
-   *Integration*. Install *Wake Word Collector*, restart Home Assistant.
-2. *Settings → Devices & services → Add integration → Wake Word Collector*,
-   enter your wake word.
-3. Add the [ESPHome package](docs/satellites.md) to every satellite.
+Die [Prüfung](docs/independent-review.md) zeigt unabhängige STT und optionale
+Student-/Teacher-Antworten an der Aufnahme. Vorschläge sind keine automatisch
+bestätigten Labels. Erst bestätigte [Fehlalarme](docs/false-alarms.md) werden
+negative Trainingsdaten. Ein niedriger Teacher-Score oder leere STT allein
+beweisen keinen Fehlalarm.
 
-## License
+[Training](docs/training.md), [Ressourcen beim Trainer](https://github.com/ChristophBellmann/wake-word-trainer/blob/main/docs/resources.md)
+und [Rollout](docs/rollout.md) halten GPU-Arbeit, Qualität und Firmwareprüfung
+getrennt. Prüfprofile und Benchmarks melden kein neues Modell. Der normale
+Rollout baut und installiert Geräte über den ESPHome Device Builder und
+prüft ihre Rückkehr mit dem erwarteten Firmwarestand.
 
-Apache-2.0
-
-## GitBook source and maintenance
-
-The [published project documentation](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/home-assistant-wake-word-collector/) is maintained through GitSync
-from `ChristophBellmann/ha-wake-word-collector` on `main`. Page sources live in
-[`docs/`](docs/README.md), with navigation in
-[`docs/SUMMARY.md`](docs/SUMMARY.md). `.gitbook.yaml` and
-`gitbook-docs.yaml` point to the same content directory.
-
-Update the affected pages alongside changes to features, installation,
-architecture, data formats, verification results or repository relationships.
-Add new pages to `SUMMARY.md`, commit and push to `main`, then verify the
-published GitBook: synchronization is asynchronous. Clearly identify historical
-results and planned functionality. Thinkthing records the shared workflow in
-`docs/gitbooks.md` and `EXPERIENCE.md`; from that repository, run
-`python3 scripts/check_gitbook_sync.py --project wake-word-collector`
-to compare published text with fresh GitHub sources.
-
-[Auslösungen direkt in Home Assistant prüfen](docs/independent-review.md) verbindet unabhängige STT und optionale Teacher-Bewertungen mit der Collector-Karte.
+[Dienste und Entitäten](docs/reference.md), [Lautsprechertests](docs/loudspeaker-test.md),
+[Datenschutz](docs/privacy.md) und [Entwicklung](docs/development.md) erläutern
+Betrieb und Tests. Persönliche Aktivierungswörter, Modelle, Sprachdaten und
+Installationshistorien bleiben privat; das Handbuch verwendet neutrale Beispiele.

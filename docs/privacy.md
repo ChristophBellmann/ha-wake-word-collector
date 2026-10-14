@@ -1,19 +1,31 @@
-# Privacy and storage
+# Datenschutz und Speicherung
 
-Recordings are voice data of the people in your home. They stay in the
-storage folder of your Home Assistant; manual recordings are sent only to your configured workstation when extraction is enabled. Keep the
-folder out of shared backups, and do not publish models trained on other
-people's voices without their consent. Diagnostics contain no audio and no
-token.
-
-## Storage layout
+Aufnahmen enthalten Stimmen der Menschen im Haushalt. Sie bleiben im privaten
+HA-Speicher; bei eingerichteter Prüfung oder Extraktion erhält nur die
+konfigurierte Workstation eine Kopie. Keine Stimmdaten oder Transkripte in Git
+übernehmen. Diagnoseausgaben enthalten weder Audio noch Token.
 
 ```text
-<storage>/candidates|needs_review|control|rejected_quality|negatives|triggers/<device>/ha_<device>_<time>_<hash>.wav
-<storage>/manifest.jsonl   one line per clip: transcript, duration, level, quality
-<storage>/reviews.jsonl    one line per review
+<storage>/<category>/<device>/ha_<device>_<time>_<hash>.wav
+<storage>/manifest.jsonl
+<storage>/reviews.jsonl
 <storage>/trim_backups/
+<storage>/model/
 ```
 
-`model/` holds the model taken over from the trainer. Folders of earlier standalone collectors with the same layout can be used as
-storage folder directly (`rejected_transcript` counts as "to check").
+Das Manifest hält Herkunft, Dauer, Pegel, Qualität und vorhandenes Transkript
+fest. Prüfentscheidungen und Schnittsicherungen bleiben nachvollziehbar.
+`model/` enthält das vom Trainer übernommene Modell und Rollout-Fortschritt.
+Ein kompatibler vorhandener Speicherordner kann weiterverwendet werden;
+`rejected_transcript` zählt zur Prüfung.
+
+Collector- und Trainer-Token bleiben privat und getrennt. Die neuen Review-
+Routen sind tokenisiert und nicht cachebar. Analyse-Details gelangen über den
+angemeldeten WebSocket zur Karte; neue STT-Texte werden nicht in
+Training-Sensorattribute geschrieben. Die Workstation hält private Snapshots,
+Hashes und Berichte außerhalb des öffentlichen Repositories.
+
+Wiederherstellung und Sicherungen vor dem Löschen prüfen. Modelle und Quellen
+anderer Sprecher nur mit passender Berechtigung weitergeben. Eine öffentliche
+Programmanleitung enthält keine privaten Aktivierungswörter oder konkreten
+Installationshistorien.

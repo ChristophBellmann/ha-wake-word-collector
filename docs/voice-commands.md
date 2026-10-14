@@ -1,12 +1,18 @@
-# Voice commands
+# Sprachbefehle
 
-- **LLM conversation agents** (with *Assist* control): nothing to do. The
-  integration registers intents the agent can call: start, stop, statistics,
-  a review of the last clip, and changing how recordings are announced.
-  That wish ("announce it like a pirate") is kept in
-  `text.<wake word>_announcement` and handed to the agent with every start.
-- **Built-in conversation agent**: import the blueprint
-  [voice_commands.yaml](../blueprints/automation/wake_word_collector/voice_commands.yaml)
-  (*Settings → Automations → Blueprints → Import*) and enter your wake word
-  and sentences in your language. It also answers the wake word itself with
-  silence while collecting, so the examples do not reach the agent.
+LLM-Assist-Agenten mit Assist-Steuerung können registrierte Intents für
+Aufnahmestart, Stopp, Statistik, Prüfung der letzten Aufnahme und Aufnahmeansage
+verwenden. Die Ansage steht unter `text.<slug>_announcement` und wird dem Agenten
+bei jedem Start übergeben.
+
+Für den eingebauten Gesprächsagenten den
+[Blueprint](../blueprints/automation/wake_word_collector/voice_commands.yaml)
+unter Einstellungen → Automationen → Blueprints importieren. Aktivierungswort
+und passende deutsche Sätze eintragen. Im Sammelmodus beantwortet der Blueprint
+reine Aktivierungswort-Aufrufe mit Stille, damit Wiederholungen nicht als
+normale Assist-Befehle verarbeitet werden.
+
+Beispiele sind „Nimm das Aktivierungswort auf“, „Ich bin fertig“ und
+„Die letzte Aufnahme war schlecht“. Ein bestätigter Fehlalarm kann direkt nach
+der Auslösung als solcher gemeldet werden. Unklare Clips später in der Karte
+anhören; Sprache und niedrige Modellantworten ersetzen keine sauberen Labels.
