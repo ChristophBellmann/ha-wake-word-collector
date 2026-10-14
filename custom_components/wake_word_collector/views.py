@@ -14,19 +14,41 @@ from __future__ import annotations
 
 import hmac
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.exceptions import HomeAssistantError
 
-from .collect import CANDIDATES, CONTROL, MAX_BODY_BYTES, NEGATIVES, CollectorError
-from .const import AUDIO_URL, DOMAIN, EXPORT_URL, MODEL_URL, NEGATIVE_AUDIO_URL, NEGATIVES_URL, UPLOAD_URL
+from .collect import (
+    CANDIDATES,
+    CONTROL,
+    DEVICE_RE,
+    LEGACY_REVIEW,
+    MAX_BODY_BYTES,
+    NEEDS_REVIEW,
+    NEGATIVES,
+    TRIGGERS,
+    CollectorError,
+)
+from .const import (
+    AUDIO_URL,
+    DOMAIN,
+    EXPORT_URL,
+    MODEL_URL,
+    NEGATIVE_AUDIO_URL,
+    NEGATIVES_URL,
+    REVIEW_AUDIO_URL,
+    REVIEW_URL,
+    UPLOAD_URL,
+)
 
 if TYPE_CHECKING:
     from .collector import Collector
 
 _LOGGER = logging.getLogger(__name__)
+REVIEW_CATEGORIES = (TRIGGERS, NEEDS_REVIEW, LEGACY_REVIEW)
 
 
 def _collectors(request: web.Request) -> list[Collector]:
@@ -172,6 +194,82 @@ class ExportNegativeAudioView(HomeAssistantView):
         return web.FileResponse(path, headers={"Content-Type": "audio/wav"})
 
 
+class ReviewListView(HomeAssistantView):
+    """Unconfirmed clips for independent analysis, never the training export."""
+
+    url = REVIEW_URL
+    name = "api:wake_word_collector:review_list"
+    requires_auth = False
+
+    async def get(self, request: web.Request, slug: str) -> web.Response:
+        collector = _by_slug(request, slug)
+        if collector is None or not _authorized(request, collector):
+            return self.json_message("authentication failed", 401)
+        device = request.query.get("device", "")
+        try:
+            if device and not DEVICE_RE.fullmatch(device):
+                raise ValueError("device")
+            limit = int(request.query.get("limit", "500"))
+            if not 1 <= limit <= 2000:
+                raise ValueError("limit")
+            since = request.query.get("created_after", "")
+            cutoff = datetime.fromisoformat(since) if since else None
+            if cutoff is not None and cutoff.tzinfo is None:
+                raise ValueError("timezone")
+        except ValueError:
+            return self.json_message("invalid review filter", 400)
+        items = []
+        for item in await collector.async_list():
+            if item["category"] not in REVIEW_CATEGORIES or (device and item["device"] != device):
+                continue
+            if cutoff is not None:
+                try:
+                    created = datetime.fromisoformat(item["created_at"])
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=UTC)
+                except (ValueError, KeyError):
+                    continue
+                if created < cutoff:
+                    continue
+            row = dict(item)
+            row["audio_url"] = REVIEW_AUDIO_URL.format(
+                slug=slug, category=row["category"], device=row["device"], filename=row["filename"]
+            )
+            items.append(row)
+        items.sort(key=lambda item: (item.get("created_at", ""), item["filename"]), reverse=True)
+        response = self.json(
+            {
+                "phrase": collector.entry.title,
+                "clips": items[:limit],
+                "total": len(items),
+                "labels_confirmed": False,
+                "truncated": len(items) > limit,
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+
+class ReviewAudioView(HomeAssistantView):
+    url = REVIEW_AUDIO_URL
+    name = "api:wake_word_collector:review_audio"
+    requires_auth = False
+
+    async def get(
+        self, request: web.Request, slug: str, category: str, device: str, filename: str
+    ) -> web.StreamResponse:
+        collector = _by_slug(request, slug)
+        if collector is None or not _authorized(request, collector):
+            return self.json_message("authentication failed", 401)
+        if category not in REVIEW_CATEGORIES:
+            raise web.HTTPNotFound
+        try:
+            path = collector.store.audio(category, device, filename)
+        except CollectorError as err:
+            raise web.HTTPNotFound from err
+        return web.FileResponse(path, headers={"Content-Type": "audio/wav", "Cache-Control": "private, no-store"})
+
+
 class ModelView(HomeAssistantView):
     """The trained model for micro_wake_word: <slug>.json and <slug>.tflite."""
 
@@ -197,5 +295,7 @@ VIEWS = (
     ExportAudioView,
     ExportNegativesView,
     ExportNegativeAudioView,
+    ReviewListView,
+    ReviewAudioView,
     ModelView,
 )

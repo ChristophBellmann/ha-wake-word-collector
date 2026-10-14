@@ -53,3 +53,5 @@ The way through:
    it for `micro_wake_word` on the satellites.
 
 Deutsch: [Überblick auf Deutsch](deutsch.md).
+
+[Auslösungen direkt in Home Assistant prüfen](independent-review.md) verbindet unabhängige STT und optionale Teacher-Bewertungen mit der Collector-Karte.

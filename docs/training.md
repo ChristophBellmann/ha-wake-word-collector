@@ -84,3 +84,6 @@ curl -H "X-Wakeword-Token: $TOKEN" http://homeassistant.local:8123/api/wake_word
 returns the usable clips with an `audio_url` each, downloadable with the same
 header. Rejected clips never appear there. `/export/<wake word>/negatives`
 lists the clips that are not the wake word, in the same way.
+
+Die [unabhängige Prüfung](independent-review.md) startet aus der Karte und
+zeigt STT, Student- und Teacher-Ergebnisse als Vorschläge zum Anhören.

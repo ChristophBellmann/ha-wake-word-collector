@@ -141,5 +141,28 @@ function card(language) {
   assert.ok(de.row({...manual, extraction_state: 'error', extraction_error: '<offline>'}).includes('&lt;offline&gt;'));
   await de.service('extract', {category: manual.category, device: manual.device, filename: manual.filename});
   assert.equal(calls.at(-1)[1], 'extract');
+  // Review evidence stays a suggestion, renders safely, and starts only a configured profile.
+  const analyzed = {...manual, analysis: {transcript: '<script>unsafe</script>', findings: ['negative_candidate'],
+    scores: [{peak: 0.95}], teachers: [{peak: 0.1}]}};
+  row = de.row(analyzed);
+  assert.ok(row.includes('&lt;script&gt;unsafe&lt;/script&gt;') && !row.includes('<script>'));
+  assert.ok(row.includes('Negativkandidat') && row.includes('Modell: 95') && row.includes('Teacher: 10'));
+  assert.ok(row.includes('vor dem Bestätigen anhören'));
+  c.review_profiles = ['review_bad', 'review']; de.render();
+  assert.ok(de.shadowRoot.innerHTML.includes('data-action="analyze"'));
+  const elements = {'[data-filter]': {}, '[data-action="refresh"]': {}, '[data-action="analyze"]': {}};
+  de.shadowRoot.querySelector = key => elements[key] || null;
+  Card.prototype.bind.call(de, []);
+  await elements['[data-action="analyze"]'].onclick();
+  assert.equal(calls.at(-1)[1], 'start_training');
+  assert.equal(calls.at(-1)[2].profile, 'review');
+  de.load = async () => { refreshes++; };
+  const unchanged = {...de._hass, states: {'sensor.test_recordings': state}};
+  de.hass = unchanged; await new Promise(resolve => setTimeout(resolve, 350));
+  const previous = refreshes;
+  de.hass = {...unchanged, states: {...unchanged.states, 'sensor.test_training': {attributes: {review: {created_at: 'new'}}}}};
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.equal(refreshes, previous + 1, 'A completed analysis refreshes existing recordings.');
+  de.disconnectedCallback();
   console.log('card ok');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -41,3 +41,6 @@ The ESPHome package keeps the last seconds of microphone audio in a ring
 buffer (`wake_word_max_duration`); on a detection it waits 300 ms for the end
 of the wake word, freezes the buffer and uploads it after the voice assistant
 finished (at the latest after 20 s), so answering is never delayed.
+
+Die [unabhängige Prüfung](independent-review.md) startet aus der Karte und
+zeigt STT, Student- und Teacher-Ergebnisse als Vorschläge zum Anhören.

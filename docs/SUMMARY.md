@@ -12,6 +12,7 @@
 
 * [Review card and GUI recording](review-card.md)
 * [False alarms](false-alarms.md)
+* [Auslösungen mit STT und Teacher prüfen](independent-review.md)
 
 ## Model
 

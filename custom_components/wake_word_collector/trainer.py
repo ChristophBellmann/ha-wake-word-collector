@@ -65,6 +65,9 @@ class TrainerClient:
     async def status(self) -> dict[str, Any]:
         return await self._json("GET", "/v1/status")
 
+    async def review(self) -> dict[str, Any]:
+        return await self._json("GET", "/v1/review")
+
     async def start(self, profile: str) -> dict[str, Any]:
         return await self._json("POST", "/v1/start", {"profile": profile})
 
@@ -116,6 +119,7 @@ class TrainerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
         self.profile: str | None = None
         self.model: dict[str, Any] = {}
+        self.review: dict[str, Any] = {}
 
     async def async_load_model_info(self) -> None:
         self.model = await self.hass.async_add_executor_job(self._read_model_info)
@@ -135,6 +139,12 @@ class TrainerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         profiles = list(status.get("profiles") or {})
         if self.profile not in profiles:
             self.profile = "recommended" if "recommended" in profiles else (profiles[0] if profiles else None)
+        review = status.get("review") or {}
+        if review.get("created_at") and review["created_at"] != self.review.get("created_at"):
+            try:
+                self.review = await self.client.review()
+            except TrainerError:
+                _LOGGER.debug("Independent clip analysis is not available yet")
         if (
             status.get("state") == "completed"
             and status.get("best_model_available")

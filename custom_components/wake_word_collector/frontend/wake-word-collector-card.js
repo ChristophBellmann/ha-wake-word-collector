@@ -4,6 +4,9 @@
 (() => {
 const I18N = {
   en: {
+    analyze: 'Analyze recordings', analysis_stt: 'Independent STT: {text}', analysis_empty: 'No words recognized — unclear audio',
+    analysis_model: 'Model: {x} %', analysis_teacher: 'Teacher: {x} %', analysis_hint: 'Review suggestion — listen before confirming.',
+    analysis_negative: 'Negative candidate', analysis_positive: 'Possible wake word', analysis_unclear: 'Unclear audio', analysis_error: 'Analysis failed',
     extract_words: 'Extract wake words', auto_extract: 'Automatically extract new microphone recordings',
     extraction_pending: 'Waiting for extraction', extraction_running: 'Recognizing and cutting wake words …',
     extraction_done: '{n} clips extracted — original kept', extraction_no_matches: 'No wake words recognized. Original kept; you can edit or retry.',
@@ -25,6 +28,9 @@ const I18N = {
     min_length: 'At least 0.5 s must remain.', done: 'Done.', heard: 'Heard: “{text}”', refresh: 'Refresh',
   },
   de: {
+    analyze: 'Aufnahmen prüfen', analysis_stt: 'Unabhängige STT: {text}', analysis_empty: 'Keine Wörter erkannt — Audio unklar',
+    analysis_model: 'Modell: {x} %', analysis_teacher: 'Teacher: {x} %', analysis_hint: 'Prüfvorschlag — vor dem Bestätigen anhören.',
+    analysis_negative: 'Negativkandidat', analysis_positive: 'Mögliches Aktivierungswort', analysis_unclear: 'Audio unklar', analysis_error: 'Prüfung fehlgeschlagen',
     extract_words: 'Aktivierungswörter ausschneiden', auto_extract: 'Neue Mikrofonaufnahmen automatisch schneiden',
     extraction_pending: 'Wartet auf den Schnitt', extraction_running: 'Aktivierungswörter werden erkannt und geschnitten …',
     extraction_done: '{n} Clips ausgeschnitten — Original behalten', extraction_no_matches: 'Kein Aktivierungswort erkannt. Original behalten; Bearbeiten oder erneut versuchen.',
@@ -83,7 +89,9 @@ class WakeWordCollectorCard extends HTMLElement {
     const sensors = Object.entries(hass.states || {}).filter(([id, state]) =>
       this.config?.recordings_entity ? id === this.config.recordings_entity :
         id.startsWith('sensor.') && state.attributes?.candidates_by_device !== undefined);
-    const fingerprint = JSON.stringify(sensors.map(([id, state]) => [id, state.state, state.attributes]));
+    const analyses = Object.entries(hass.states || {}).filter(([id, state]) =>
+      id.startsWith('sensor.') && state.attributes?.review?.created_at).map(([id, state]) => [id, state.attributes.review.created_at]);
+    const fingerprint = JSON.stringify([sensors.map(([id, state]) => [id, state.state, state.attributes]), analyses]);
     const changed = fingerprint !== this.fingerprint;
     this.fingerprint = fingerprint;
     if (first) this.load();
@@ -296,6 +304,7 @@ class WakeWordCollectorCard extends HTMLElement {
       <div class="head"><strong>${escapeHtml(when)}</strong><span class="badge">${escapeHtml(this.t('cat_' + item.category))}</span></div>
       <div class="muted">${escapeHtml((this.config?.device_names?.[item.device] || item.device) + length)}</div>
       ${item.transcript ? `<div class="transcript">${escapeHtml(this.t('heard', {text: item.transcript}))}</div>` : ''}
+      ${this.analysis(item)}
       ${(item.quality_reasons || []).length ? `<div class="notice">${escapeHtml(item.quality_reasons.map(reason => this.t(reason)).join(' · '))}</div>` : ''}
       ${item.extracted_from ? `<div class="muted">${escapeHtml(this.t('extracted_clip'))}</div>` : ''}
       ${item.extraction_state && item.extraction_state !== 'error' ? `<div class="notice">${escapeHtml(this.t('extraction_' + item.extraction_state, {n: item.extraction_count || 0}))}</div>` : ''}
@@ -309,6 +318,18 @@ class WakeWordCollectorCard extends HTMLElement {
       ${this.collector()?.has_trainer && item.kind === 'manual' ? `<button data-action="extract" ${disabled} ${['pending', 'running'].includes(item.extraction_state) ? 'disabled' : ''}>${escapeHtml(this.t('extract_words'))}</button>` : ''}
       <button data-action="edit">${escapeHtml(this.t(editing ? 'close' : 'edit'))}</button></div>
       ${editing ? this.editor() : ''}</div>`;
+  }
+  analysis(item) {
+    const result = item.analysis;
+    if (!result) return '';
+    const meanings = {negative_candidate: 'analysis_negative', wake_word_candidate: 'analysis_positive',
+      unclear_audio: 'analysis_unclear', processing_error: 'analysis_error'};
+    const hints = (result.findings || []).map(key => this.t(meanings[key] || key));
+    for (const score of result.scores || []) hints.push(this.t('analysis_model', {x: this.num(score.peak * 100)}));
+    for (const score of result.teachers || []) hints.push(this.t('analysis_teacher', {x: this.num(score.peak * 100)}));
+    const text = result.transcript ? this.t('analysis_stt', {text: result.transcript}) : this.t('analysis_empty');
+    return `<div class="notice analysis"><div>${escapeHtml(text)}</div><div>${escapeHtml(hints.join(' · '))}</div>
+      <div class="muted">${escapeHtml(result.error || this.t('analysis_hint'))}</div></div>`;
   }
   render() {
     const style = `<style>
@@ -336,7 +357,8 @@ class WakeWordCollectorCard extends HTMLElement {
       <h2>${escapeHtml(this.config?.title || `${this.t('title')}: ${collector.title}`)}</h2>
       <div class="muted">${escapeHtml(summary)}</div>
       <div class="toolbar"><select data-filter>${['all', 'review', 'candidates', 'triggers', 'negatives', 'rejected'].map(f => `<option value="${f}" ${f === this.filter ? 'selected' : ''}>${escapeHtml(this.t(f))}</option>`).join('')}</select>
-      <button data-action="refresh">${escapeHtml(this.t('refresh'))}</button></div>
+      <button data-action="refresh">${escapeHtml(this.t('refresh'))}</button>
+      ${collector.review_profiles?.length ? `<button data-action="analyze" ${this.busy ? 'disabled' : ''}>${escapeHtml(this.t('analyze'))}</button>` : ''}</div>
       ${collector.has_trainer ? `<label><input type="checkbox" data-auto-extract ${collector.auto_extract !== false ? 'checked' : ''} ${this.busy ? 'disabled' : ''}> ${escapeHtml(this.t('auto_extract'))}</label>` : ''}
       ${this.message ? `<div class="notice" role="status">${escapeHtml(this.message)}</div>` : ''}
       ${items.length ? items.slice(0, this.limit).map(item => this.row(item)).join('') : `<p class="muted">${escapeHtml(this.t('empty'))}</p>`}
@@ -348,6 +370,11 @@ class WakeWordCollectorCard extends HTMLElement {
     const root = this.shadowRoot, byKey = new Map(items.map(item => [this.key(item), item]));
     root.querySelector('[data-filter]').onchange = event => { this.filter = event.target.value; this.limit = 30; this.render(); };
     root.querySelector('[data-action="refresh"]').onclick = () => this.load();
+    const analyze = root.querySelector('[data-action="analyze"]');
+    if (analyze) analyze.onclick = () => {
+      const profiles = this.collector().review_profiles;
+      return this.service('start_training', {profile: profiles.includes('review') ? 'review' : profiles[0]});
+    };
     root.querySelector('[data-auto-extract]')?.addEventListener('change', event => this.service('auto_extract', {enabled: event.target.checked}));
     const more = root.querySelector('[data-action="more"]');
     if (more) more.onclick = () => { this.limit += 30; this.render(); };

@@ -504,6 +504,7 @@ class Store:
                         "category": category,
                         "device": device,
                         "filename": path.name,
+                        "sha256": record.get("sha256"),
                         "created_at": record.get("created_at")
                         or datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
                         "transcript": record.get("transcript", ""),

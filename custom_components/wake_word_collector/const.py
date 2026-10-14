@@ -24,6 +24,8 @@ AUDIO_URL = "/api/wake_word_collector/audio/{entry_id}/{category}/{device}/{file
 EXPORT_URL = "/api/wake_word_collector/export/{slug}/{device}/{filename}"
 NEGATIVES_URL = "/api/wake_word_collector/export/{slug}/negatives"
 NEGATIVE_AUDIO_URL = "/api/wake_word_collector/export/{slug}/negatives/{category}/{device}/{filename}"
+REVIEW_URL = "/api/wake_word_collector/export/{slug}/review"
+REVIEW_AUDIO_URL = "/api/wake_word_collector/export/{slug}/review/{category}/{device}/{filename}"
 MODEL_URL = "/api/wake_word_collector/model/{slug}/{filename}"
 CARD_URL = "/wake_word_collector/wake-word-collector-card.js"
 

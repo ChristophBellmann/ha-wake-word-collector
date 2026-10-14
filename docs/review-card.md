@@ -51,3 +51,6 @@ the satellite's wake-word model and does not require it to detect your examples.
 Allow roughly one second between repetitions. Recognition can miss difficult
 pronunciations; manual editing remains available. Long sessions retain the
 ESPHome package's segment boundaries and short upload pauses.
+
+Die [unabhängige Prüfung](independent-review.md) startet aus der Karte und
+zeigt STT, Student- und Teacher-Ergebnisse als Vorschläge zum Anhören.

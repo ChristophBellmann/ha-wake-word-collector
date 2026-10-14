@@ -346,10 +346,14 @@ async def ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
             continue
         await collector.async_refresh()
         items = await collector.async_list()
+        analysis = collector.trainer.review if collector.trainer else {}
+        by_hash = {row.get("sha256"): row for row in analysis.get("clips", [])}
         for item in items:
             item["audio_path"] = AUDIO_URL.format(
                 entry_id=entry_id, category=item["category"], device=item["device"], filename=item["filename"]
             )
+            if item.get("sha256") in by_hash:
+                item["analysis"] = by_hash[item["sha256"]]
         result.append(
             {
                 "entry_id": entry_id,
@@ -358,6 +362,10 @@ async def ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
                 "items": items,
                 "auto_extract": collector.auto_extract,
                 "has_trainer": collector.trainer is not None,
+                "review_profiles": list((collector.trainer.data or {}).get("review_profiles", []))
+                if collector.trainer
+                else [],
+                "analysis_created_at": analysis.get("created_at"),
             }
         )
     connection.send_result(msg["id"], {"collectors": result})

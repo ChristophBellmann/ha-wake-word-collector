@@ -124,6 +124,7 @@ async def test_start_stop_command(hass: HomeAssistant, entry) -> None:
 
 
 async def test_list_review_and_trim(hass: HomeAssistant, entry, hass_client_no_auth, hass_ws_client, hass_client):
+    assert await async_setup_component(hass, "websocket_api", {})
     client = await hass_client_no_auth()
     await upload(client, "Hey Novi", wav_bytes(speech(3)))
     ws = await hass_ws_client(hass)

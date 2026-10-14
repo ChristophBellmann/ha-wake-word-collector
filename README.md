@@ -66,3 +66,5 @@ results and planned functionality. Thinkthing records the shared workflow in
 `docs/gitbooks.md` and `EXPERIENCE.md`; from that repository, run
 `python3 scripts/check_gitbook_sync.py --project wake-word-collector`
 to compare published text with fresh GitHub sources.
+
+[Auslösungen direkt in Home Assistant prüfen](docs/independent-review.md) verbindet unabhängige STT und optionale Teacher-Bewertungen mit der Collector-Karte.
