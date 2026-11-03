@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Wake Word Collector</title>
+  <desc>Original project icon: a speech waveform above a collection tray. Apache-2.0, Christoph Bellmann.</desc>
+  <rect width="256" height="256" rx="52" fill="#125b64"/>
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round">
+    <path d="M48 99v26M88 70v84M128 46v132M168 70v84M208 99v26"/>
+  </g>
+  <path d="M48 185v25h160v-25" fill="none" stroke="#ffcc66" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

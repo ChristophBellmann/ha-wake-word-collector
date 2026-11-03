@@ -22,6 +22,8 @@ flowchart LR
 
 ## Einrichtung
 
+[![Repository in HACS hinzufügen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ChristophBellmann&repository=ha-wake-word-collector&category=integration)
+
 HACS → Benutzerdefinierte Repositories →
 `https://github.com/ChristophBellmann/ha-wake-word-collector`, Kategorie
 Integration. Installieren, HA-Konfiguration prüfen und neu starten.
@@ -29,6 +31,13 @@ Unter Einstellungen → Geräte & Dienste Wake Word Collector hinzufügen.
 Die Optionen liefern Upload-URL, privaten Token und Befehlssensor.
 Das [ESPHome-Paket](docs/satellites.md) mit eigenen IDs, Mikrofonkanal und Gain
 in jedes Gerät einbinden.
+
+Der Collector wird als benutzerdefinierte HACS-Integration verteilt. Die Karte
+ist Teil dieser Integration und benötigt kein eigenes Dashboard-Repository.
+Die [GitHub-Releases](https://github.com/ChristophBellmann/ha-wake-word-collector/releases)
+liefern die installierbaren Versionen; eine Aufnahme in die HACS-Standardliste
+ist damit noch nicht zugesagt. Dies ist ein unabhängiges Community-Projekt.
+Das eigene Integrationssymbol wird ab Home Assistant 2026.3 angezeigt.
 
 `type: custom:wake-word-collector-card` zeigt Aufnahmen, Kategorien,
 Wellenformeditor und Prüfhinweise an. Sprachbefehle oder GUI-Aufnahme starten
