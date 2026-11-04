@@ -148,6 +148,12 @@ function card(language) {
   assert.ok(row.includes('&lt;script&gt;unsafe&lt;/script&gt;') && !row.includes('<script>'));
   assert.ok(row.includes('Negativkandidat') && row.includes('Modell: 95') && row.includes('Teacher: 10'));
   assert.ok(row.includes('vor dem Bestätigen anhören'));
+  row = de.row({...analyzed, category: 'negatives', analysis: {...analyzed.analysis, application: {state: 'applied'}}});
+  assert.ok(row.includes('Automatisch als Negativbeispiel übernommen') && row.includes('data-action="accept"'));
+  assert.ok(!row.includes('vor dem Bestätigen anhören'));
+  row = de.row({...analyzed, category: 'candidates', analysis: {...analyzed.analysis, application: {state: 'applied'}}});
+  assert.ok(!row.includes('Automatisch als Negativbeispiel übernommen'));
+  assert.ok(!row.includes('data-action="accept"'));
   c.review_profiles = ['review_bad', 'review']; de.render();
   assert.ok(de.shadowRoot.innerHTML.includes('data-action="analyze"'));
   const elements = {'[data-filter]': {}, '[data-action="refresh"]': {}, '[data-action="analyze"]': {}};

@@ -82,3 +82,41 @@ einen zweiten Lauf desselben Trainer-Dienstes bleiben wirksam.
 
 Die vollständige [Trainer-Anleitung zur HA-Prüfung](https://renewable-energy-design.gitbook.io/renewable-energy-design-docs/uebersicht/wake-word-trainer/home-assistant/home-assistant-review)
 beschreibt Snapshots, Konfiguration, lokale gezielte Abrufe und Fehlerfälle.
+
+## Begrenzte automatische Negativentscheidungen
+
+Dieser Ablauf benötigt kompatible Collector-/Trainer-Releases mit der
+Konsens-Review-Schnittstelle; deren Release-Hinweise bestimmen die
+Verfügbarkeit. Ein ausdrücklich konfiguriertes Prüfprofil kann bekannte
+negative Geräteansagen übernehmen. Große lokale GPU-STT,
+ein zweites STT-Modell und geprüfte Teacher müssen übereinstimmen; leere,
+unsichere oder widersprüchliche Ergebnisse bleiben offen. Die private Richtlinie
+enthält bekannte Phrasen, Konfidenzgrenzen und freigegebene Teacher-Hashes.
+Sie ist standardmäßig nicht aktiviert.
+
+```mermaid
+flowchart TD
+  A[Ungeprüfte Auslösung] --> B[Große STT und Gegenprüfung]
+  A --> T[Geprüfter Teacher]
+  B --> Q{Bekannte negative Phrase sicher erkannt?}
+  T --> Q
+  Q -->|Unklar oder Widerspruch| U[Prüfclip behalten]
+  Q -->|Konsens| H[Audiohash unter Speichersperre prüfen]
+  H -->|Unverändert| N[Negativbeispiel mit Herkunft speichern]
+  H -->|Geändert| U
+  N --> K[Korrektur in Karte weiterhin möglich]
+```
+
+Der Trainer sendet den Entscheid per POST an die vorhandene tokenisierte
+Audio-Review-Route. Ausschließlich ungeprüfte `triggers` dürfen negativ werden;
+Positive können darüber nicht freigegeben werden. Der Audiohash wird atomar
+mit der Verschiebung geprüft. Nach Schnitt oder bereits erfolgter Bewertung
+wird die Entscheidung mit 409 abgelehnt. `analysis_decisions.jsonl` hält
+Teacher-Hashes und Prüfkennung privat fest.
+
+Die Karte zeigt einen übernommenen automatischen Negativentscheid und erlaubt
+die Korrektur zu einer positiven Aufnahme. Diese Übernahme allein startet
+keinen Rollout. Teacher-Ziele können breiter als das Student-Ziel sein; deren
+Scores und Labelrollen müssen getrennt geprüft werden. Die vollständige
+[Trainer-Anleitung](https://github.com/ChristophBellmann/wake-word-trainer/blob/main/docs/home-assistant-review.md)
+beschreibt GPU-Engine, getrennte Umgebungen und private Richtlinien.

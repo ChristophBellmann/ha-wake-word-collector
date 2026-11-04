@@ -6,6 +6,7 @@ const I18N = {
   en: {
     analyze: 'Analyze recordings', analysis_stt: 'Independent STT: {text}', analysis_empty: 'No words recognized — unclear audio',
     analysis_model: 'Model: {x} %', analysis_teacher: 'Teacher: {x} %', analysis_hint: 'Review suggestion — listen before confirming.',
+    analysis_applied: 'Automatically accepted as a negative — correct it here if needed.',
     analysis_negative: 'Negative candidate', analysis_positive: 'Possible wake word', analysis_unclear: 'Unclear audio', analysis_error: 'Analysis failed',
     extract_words: 'Extract wake words', auto_extract: 'Automatically extract new microphone recordings',
     extraction_pending: 'Waiting for extraction', extraction_running: 'Recognizing and cutting wake words …',
@@ -30,6 +31,7 @@ const I18N = {
   de: {
     analyze: 'Aufnahmen prüfen', analysis_stt: 'Unabhängige STT: {text}', analysis_empty: 'Keine Wörter erkannt — Audio unklar',
     analysis_model: 'Modell: {x} %', analysis_teacher: 'Teacher: {x} %', analysis_hint: 'Prüfvorschlag — vor dem Bestätigen anhören.',
+    analysis_applied: 'Automatisch als Negativbeispiel übernommen — hier bei Bedarf korrigieren.',
     analysis_negative: 'Negativkandidat', analysis_positive: 'Mögliches Aktivierungswort', analysis_unclear: 'Audio unklar', analysis_error: 'Prüfung fehlgeschlagen',
     extract_words: 'Aktivierungswörter ausschneiden', auto_extract: 'Neue Mikrofonaufnahmen automatisch schneiden',
     extraction_pending: 'Wartet auf den Schnitt', extraction_running: 'Aktivierungswörter werden erkannt und geschnitten …',
@@ -329,7 +331,7 @@ class WakeWordCollectorCard extends HTMLElement {
     for (const score of result.teachers || []) hints.push(this.t('analysis_teacher', {x: this.num(score.peak * 100)}));
     const text = result.transcript ? this.t('analysis_stt', {text: result.transcript}) : this.t('analysis_empty');
     return `<div class="notice analysis"><div>${escapeHtml(text)}</div><div>${escapeHtml(hints.join(' · '))}</div>
-      <div class="muted">${escapeHtml(result.error || this.t('analysis_hint'))}</div></div>`;
+      <div class="muted">${escapeHtml(item.category === 'negatives' && result.application?.state === 'applied' ? this.t('analysis_applied') : result.application?.error || result.error || this.t('analysis_hint'))}</div></div>`;
   }
   render() {
     const style = `<style>

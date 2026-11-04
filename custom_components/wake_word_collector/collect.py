@@ -609,6 +609,26 @@ class Store:
 
     # Review -------------------------------------------------------------------
 
+    def review_consensus(self, category: str, device: str, filename: str, digest: str, evidence: dict) -> dict:
+        """Apply a workstation decision only to the unchanged unconfirmed trigger."""
+        if category != TRIGGERS:
+            raise CollectorError("invalid_decision")
+        source = self._path(category, device, filename)
+        if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
+            raise CollectorError("extraction_changed")
+        record = self.review(category, device, filename, "negative", "Teacher-/STT-Konsens der Workstation")
+        self._append("analysis_decisions.jsonl", {**record, "evidence": evidence})
+        self._update_record(
+            device,
+            filename,
+            {
+                "auto_negative": True,
+                "negative_source": "teacher_stt_consensus",
+                "analysis_review_id": evidence["review_id"],
+            },
+        )
+        return record
+
     def review(self, category: str, device: str, filename: str, decision: str, note: str = "") -> dict:
         """accept: move to candidates; reject: move to rejected_quality (recoverable);
         negative: not the wake word, move to negatives (trains what to ignore)."""

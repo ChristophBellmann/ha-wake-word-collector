@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -268,6 +270,45 @@ class ReviewAudioView(HomeAssistantView):
         except CollectorError as err:
             raise web.HTTPNotFound from err
         return web.FileResponse(path, headers={"Content-Type": "audio/wav", "Cache-Control": "private, no-store"})
+
+    async def post(self, request: web.Request, slug: str, category: str, device: str, filename: str) -> web.Response:
+        collector = _by_slug(request, slug)
+        if collector is None or not _authorized(request, collector):
+            return self.json_message("authentication failed", 401)
+        if category != TRIGGERS:
+            return self.json_message("only unconfirmed triggers can be classified", 400)
+        if request.content_length is None or not 0 < request.content_length <= 4096:
+            return self.json_message("invalid decision size", 413)
+        try:
+            data = json.loads(await request.read())
+            if not isinstance(data, dict) or data.get("decision") != "negative":
+                raise ValueError("decision")
+            digest, review_id = data.get("sha256"), data.get("review_id")
+            hashes = data.get("teacher_hashes")
+            if not isinstance(digest, str) or not re.fullmatch("[a-f0-9]{64}", digest):
+                raise ValueError("hash")
+            if not isinstance(review_id, str) or not re.fullmatch("[a-zA-Z0-9_-]{1,128}", review_id):
+                raise ValueError("review")
+            if (
+                not isinstance(hashes, list)
+                or not 1 <= len(hashes) <= 10
+                or any(not isinstance(h, str) or not re.fullmatch("[a-f0-9]{64}", h) for h in hashes)
+            ):
+                raise ValueError("teachers")
+            if data.get("reason") != "known_negative_teacher_stt_consensus":
+                raise ValueError("reason")
+        except (ValueError, TypeError):
+            return self.json_message("invalid negative decision", 400)
+        evidence = {"review_id": review_id, "teacher_hashes": hashes, "reason": data["reason"]}
+        try:
+            result = await collector._run(
+                collector.store.review_consensus, category, device, filename, digest, evidence
+            )
+        except HomeAssistantError:
+            return self.json_message("recording changed or already reviewed", 409)
+        response = self.json(result)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
 
 class ModelView(HomeAssistantView):
