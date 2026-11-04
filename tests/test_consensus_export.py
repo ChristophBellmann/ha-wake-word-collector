@@ -1,15 +1,26 @@
 """Workstation decisions require an unchanged unconfirmed trigger and keep evidence."""
 
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
+
+from custom_components.wake_word_collector.const import CONF_ALLOW_CONSENSUS_REVIEW
 
 from .test_collect import speech, wav_bytes
 from .test_integration import TOKEN, entry  # noqa: F401
 
 
-async def test_consensus_sha_guard_and_recoverable_negative(entry, hass_client_no_auth):  # noqa: F811
-    collector = entry.runtime_data
+@pytest.fixture
+async def consensus_entry(hass, entry):  # noqa: F811
+    with patch.object(hass.config_entries, "async_reload", AsyncMock(return_value=True)):
+        hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_ALLOW_CONSENSUS_REVIEW: True})
+        await hass.async_block_till_done()
+    return entry
+
+
+async def test_consensus_sha_guard_and_recoverable_negative(consensus_entry, hass_client_no_auth):
+    collector = consensus_entry.runtime_data
     [record] = await collector.async_add("bath", "", wav_bytes(speech(3)), "trigger")
     url = "/api/wake_word_collector/export/hey_nova/review/triggers/bath/" + record["filename"]
     payload = {
@@ -49,8 +60,8 @@ async def test_consensus_sha_guard_and_recoverable_negative(entry, hass_client_n
         {"reason": "unspecified"},
     ],
 )
-async def test_invalid_consensus_cannot_change_labels(entry, hass_client_no_auth, change):  # noqa: F811
-    collector = entry.runtime_data
+async def test_invalid_consensus_cannot_change_labels(consensus_entry, hass_client_no_auth, change):
+    collector = consensus_entry.runtime_data
     [record] = await collector.async_add("bath", "", wav_bytes(speech(3)), "trigger")
     url = "/api/wake_word_collector/export/hey_nova/review/triggers/bath/" + record["filename"]
     payload = {
@@ -63,4 +74,14 @@ async def test_invalid_consensus_cannot_change_labels(entry, hass_client_no_auth
     }
     client = await hass_client_no_auth()
     assert (await client.post(url, json=payload, headers={"X-Wakeword-Token": TOKEN})).status == 400
+    assert (await collector.async_list())[0]["category"] == "triggers"
+
+
+async def test_default_option_never_grants_consensus_write_access(entry, hass_client_no_auth):  # noqa: F811
+    collector = entry.runtime_data
+    [record] = await collector.async_add("bath", "", wav_bytes(speech(3)), "trigger")
+    client = await hass_client_no_auth()
+    url = "/api/wake_word_collector/export/hey_nova/review/triggers/bath/" + record["filename"]
+    response = await client.post(url, json={"decision": "negative"}, headers={"X-Wakeword-Token": TOKEN})
+    assert response.status == 403
     assert (await collector.async_list())[0]["category"] == "triggers"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+import re
 import secrets
 from typing import Any
 
@@ -14,6 +16,7 @@ from homeassistant.util import slugify
 
 from .collect import CollectorError, Phrases
 from .const import (
+    CONF_ALLOW_CONSENSUS_REVIEW,
     CONF_CONTROL,
     CONF_ESPHOME_URL,
     CONF_PHRASE,
@@ -42,6 +45,9 @@ def _schema(values: dict[str, Any], with_phrase: bool, trainer: bool = False) ->
     schema[vol.Optional(CONF_CONTROL, description={"suggested_value": values.get(CONF_CONTROL, "")})] = TEXT
     schema[vol.Optional(CONF_STORAGE, description={"suggested_value": values.get(CONF_STORAGE, "")})] = TEXT
     if trainer:
+        schema[vol.Optional(CONF_ALLOW_CONSENSUS_REVIEW, default=values.get(CONF_ALLOW_CONSENSUS_REVIEW, False))] = (
+            sel.BooleanSelector()
+        )
         schema[vol.Optional(CONF_TRAINER_URL, description={"suggested_value": values.get(CONF_TRAINER_URL, "")})] = URL
         schema[
             vol.Optional(CONF_TRAINER_TOKEN, description={"suggested_value": values.get(CONF_TRAINER_TOKEN, "")})
@@ -110,6 +116,27 @@ class WakeWordCollectorConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return WakeWordCollectorOptionsFlow()
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Replace the sole upload/export token through HA's existing entry flow."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            token = user_input.get(CONF_TOKEN)
+            if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+                errors[CONF_TOKEN] = "token_invalid"
+            elif hmac.compare_digest(token, entry.data[CONF_TOKEN]):
+                errors[CONF_TOKEN] = "token_unchanged"
+            else:
+                # The existing entry update listener already owns reloading;
+                # scheduling another reload here would reload it twice.
+                return self.async_update_and_abort(entry, data_updates={CONF_TOKEN: token})
+        # Do not suggest or echo either the current token or rejected input.
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({vol.Required(CONF_TOKEN): PASSWORD}),
+            errors=errors,
+        )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

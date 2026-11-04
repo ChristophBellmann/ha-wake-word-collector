@@ -36,6 +36,7 @@ from .collect import (
 )
 from .const import (
     AUDIO_URL,
+    CONF_ALLOW_CONSENSUS_REVIEW,
     DOMAIN,
     EXPORT_URL,
     MODEL_URL,
@@ -275,6 +276,8 @@ class ReviewAudioView(HomeAssistantView):
         collector = _by_slug(request, slug)
         if collector is None or not _authorized(request, collector):
             return self.json_message("authentication failed", 401)
+        if collector.entry.options.get(CONF_ALLOW_CONSENSUS_REVIEW) is not True:
+            return self.json_message("automatic review is not enabled by the administrator", 403)
         if category != TRIGGERS:
             return self.json_message("only unconfirmed triggers can be classified", 400)
         if request.content_length is None or not 0 < request.content_length <= 4096:

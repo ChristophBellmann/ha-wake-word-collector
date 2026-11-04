@@ -20,10 +20,22 @@
       "device_settings": {
         "title": "Einstellungen für die Satelliten",
         "description": "Diese Werte kommen in die ESPHome-Konfiguration jedes Satelliten (siehe README):\n\nUpload-URL: `{url}`\nToken: `{token}`\nBefehlssensor: `sensor.{slug}_satellite_command`\n\nDas Token geheim halten, z. B. in `secrets.yaml`. Es steht auch später in den Optionen dieses Eintrags."
+      },
+      "reconfigure": {
+        "title": "Aufnahme-Token wechseln",
+        "description": "Ersetzt nur den Token für Aufnahme-Uploads und Exporte. Der alte Token wird sofort ungültig. Alle Satelliten und Trainerclients müssen anschließend den neuen Token verwenden. Ein fehlgeschlagenes Neuladen der Integration stellt den alten Token nicht wieder her.",
+        "data": {
+          "token": "Neuer Aufnahme-Token"
+        },
+        "data_description": {
+          "token": "Ein neu erzeugter Token aus 32 bis 128 Buchstaben, Ziffern, Unterstrichen oder Bindestrichen. Der aktuelle Wert wird nicht angezeigt."
+        }
       }
     },
     "error": {
-      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten."
+      "phrase_empty": "Das Aktivierungswort muss mindestens einen Buchstaben oder eine Ziffer enthalten.",
+      "token_invalid": "32 bis 128 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.",
+      "token_unchanged": "Einen neuen Token statt des aktuellen verwenden."
     },
     "abort": {
       "already_configured": "Dieses Aktivierungswort ist bereits eingerichtet."
@@ -41,7 +53,8 @@
           "trainer_url": "Wake-Word-Trainer-Dienst",
           "trainer_token": "Trainer-Token",
           "rollout_config": "Konfiguration für das Ausrollen",
-          "esphome_url": "ESPHome Device Builder"
+          "esphome_url": "ESPHome Device Builder",
+          "allow_consensus_review": "Automatische Negativentscheidungen erlauben"
         },
         "data_description": {
           "variants": "Durch Kommas getrennte Schreibweisen, die ebenfalls zählen, z. B. hey jarvas, hei jarvis. Eine Aufnahme, die nur daraus besteht (einmal oder mehrmals), ist fürs Training bereit; Wiederholungen werden in einzelne Clips getrennt.",
@@ -50,7 +63,8 @@
           "trainer_url": "Optional, z. B. http://192.168.1.20:10701 (wake-word-trainer serve auf dem Trainingsrechner). Leer: kein Training aus Home Assistant.",
           "trainer_token": "Der Token aus der token_file des Dienstes.",
           "rollout_config": "Optional: die model_update-YAML-Datei neben den ESPHome-Konfigurationen, z. B. esphome/wake-word-model.yaml (relativ zum Konfigurationsordner von Home Assistant). Leer: kein Ausrollen aus Home Assistant.",
-          "esphome_url": "Optional, z. B. http://127.0.0.1:6052. Leer: das ESPHome-Device-Builder-Add-on, das die ESPHome-Integration kennt."
+          "esphome_url": "Optional, z. B. http://127.0.0.1:6052. Leer: das ESPHome-Device-Builder-Add-on, das die ESPHome-Integration kennt.",
+          "allow_consensus_review": "Standardmäßig aus. Erlaubt dem authentifizierten Trainer, ungeprüfte Auslösungen negativ einzuordnen. Erst nach geprüftem Tokenwechsel und freigegebener Konsensrichtlinie einschalten."
         }
       }
     },

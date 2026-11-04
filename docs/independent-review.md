@@ -94,6 +94,21 @@ unsichere oder widersprüchliche Ergebnisse bleiben offen. Die private Richtlini
 enthält bekannte Phrasen, Konfidenzgrenzen und freigegebene Teacher-Hashes.
 Sie ist standardmäßig nicht aktiviert.
 
+Zusätzlich muss ein HA-Administrator in den Integrationsoptionen
+**Automatische Negativentscheidungen erlauben** einschalten. Ohne diese
+standardmäßig ausgeschaltete Freigabe verweigert der Collector die schreibende
+Reviewroute auch bei gültigem Recorder-Token. Ein Tokenwechsel allein schaltet
+sie nicht ein. Erst den Wechsel aller Verbraucher prüfen, dann eine passende
+Konsensrichtlinie und diese zusätzliche Schreibberechtigung freigeben.
+
+Der Recorder-Token lässt sich über **Neu konfigurieren** am vorhandenen
+Integrationseintrag ersetzen. Der Passwortdialog zeigt keinen bisherigen Wert
+und ändert weder Phrase noch Speicherort oder Trainerzugang. Der bestehende
+Entry-Update-Listener lädt nur diese Integration neu; ein Fehler dabei setzt
+keinen alten Token zurück. Alte Firmware und Clients werden nach dem Wechsel
+für Aufnahme-Upload und Export abgewiesen, bis sie den neuen Token verwenden.
+HA-Bearer, WLAN, native ESPHome-API und OTA haben davon getrennte Credentials.
+
 ```mermaid
 flowchart TD
   A[Ungeprüfte Auslösung] --> B[Große STT und Gegenprüfung]

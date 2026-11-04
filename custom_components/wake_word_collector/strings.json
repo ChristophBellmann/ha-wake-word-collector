@@ -20,10 +20,22 @@
       "device_settings": {
         "title": "Satellite settings",
         "description": "Put these into the ESPHome configuration of every satellite (see README):\n\nUpload URL: `{url}`\nToken: `{token}`\nCommand sensor: `sensor.{slug}_satellite_command`\n\nKeep the token secret, e.g. in `secrets.yaml`. It is shown again in the options of this entry."
+      },
+      "reconfigure": {
+        "title": "Replace recording token",
+        "description": "Replace only the token for recording uploads and exports. The old token stops working immediately. Every satellite and trainer client must then use the new token. A failed integration reload does not restore the old token.",
+        "data": {
+          "token": "New recording token"
+        },
+        "data_description": {
+          "token": "A newly generated token with 32 to 128 letters, digits, underscores or hyphens. The current value is not shown."
+        }
       }
     },
     "error": {
-      "phrase_empty": "The wake word must contain at least one letter or digit."
+      "phrase_empty": "The wake word must contain at least one letter or digit.",
+      "token_invalid": "Use 32 to 128 letters, digits, underscores or hyphens.",
+      "token_unchanged": "Choose a new token instead of the current one."
     },
     "abort": {
       "already_configured": "This wake word is already set up."
@@ -41,7 +53,8 @@
           "trainer_url": "Wake Word Trainer service",
           "trainer_token": "Trainer token",
           "rollout_config": "Model rollout configuration",
-          "esphome_url": "ESPHome Device Builder"
+          "esphome_url": "ESPHome Device Builder",
+          "allow_consensus_review": "Allow automatic negative review decisions"
         },
         "data_description": {
           "variants": "Comma separated transcriptions that also count, e.g. hey jarvas, hi jarvis. A recording that consists only of these, once or several times, is ready for training; repetitions are split into single clips.",
@@ -50,7 +63,8 @@
           "trainer_url": "Optional, e.g. http://192.168.1.20:10701 (wake-word-trainer serve on the training computer). Empty: no training from Home Assistant.",
           "trainer_token": "The token in the service's token_file.",
           "rollout_config": "Optional: the model_update YAML file next to your ESPHome configurations, e.g. esphome/wake-word-model.yaml (relative to the Home Assistant configuration folder). Empty: no rollout from Home Assistant.",
-          "esphome_url": "Optional, e.g. http://127.0.0.1:6052. Empty: the ESPHome Device Builder add-on known to the ESPHome integration."
+          "esphome_url": "Optional, e.g. http://127.0.0.1:6052. Empty: the ESPHome Device Builder add-on known to the ESPHome integration.",
+          "allow_consensus_review": "Off by default. Allows the authenticated trainer to classify unconfirmed triggers as negatives. Enable only after a verified token change and an approved consensus policy."
         }
       }
     },

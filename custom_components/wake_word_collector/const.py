@@ -10,6 +10,7 @@ CONF_TOKEN = "token"
 CONF_SLUG = "slug"
 CONF_TRAINER_URL = "trainer_url"
 CONF_TRAINER_TOKEN = "trainer_token"
+CONF_ALLOW_CONSENSUS_REVIEW = "allow_consensus_review"
 # Model rollout: model_update configuration and ESPHome Device Builder.
 CONF_ROLLOUT_CONFIG = "rollout_config"
 CONF_ESPHOME_URL = "esphome_url"
