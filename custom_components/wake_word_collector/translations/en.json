@@ -38,7 +38,8 @@
       "token_unchanged": "Choose a new token instead of the current one."
     },
     "abort": {
-      "already_configured": "This wake word is already set up."
+      "already_configured": "This wake word is already set up.",
+      "reconfigure_successful": "Recording token replaced. Verify the integration and update every satellite and trainer client."
     }
   },
   "options": {

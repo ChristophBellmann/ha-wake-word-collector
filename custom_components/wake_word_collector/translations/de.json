@@ -38,7 +38,8 @@
       "token_unchanged": "Einen neuen Token statt des aktuellen verwenden."
     },
     "abort": {
-      "already_configured": "Dieses Aktivierungswort ist bereits eingerichtet."
+      "already_configured": "Dieses Aktivierungswort ist bereits eingerichtet.",
+      "reconfigure_successful": "Aufnahme-Token ersetzt. Integration prüfen und alle Satelliten sowie Trainerclients aktualisieren."
     }
   },
   "options": {
