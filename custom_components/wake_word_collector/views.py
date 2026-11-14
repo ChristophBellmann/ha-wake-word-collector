@@ -52,6 +52,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 REVIEW_CATEGORIES = (TRIGGERS, NEEDS_REVIEW, LEGACY_REVIEW)
+# Reasons the workstation may give for an automatic negative: a known phrase,
+# or no wake word in two STT models. Both need a calibrated low teacher score.
+CONSENSUS_REASONS = ("known_negative_teacher_stt_consensus", "no_wake_word_teacher_stt_consensus")
 
 
 def _collectors(request: web.Request) -> list[Collector]:
@@ -298,7 +301,7 @@ class ReviewAudioView(HomeAssistantView):
                 or any(not isinstance(h, str) or not re.fullmatch("[a-f0-9]{64}", h) for h in hashes)
             ):
                 raise ValueError("teachers")
-            if data.get("reason") != "known_negative_teacher_stt_consensus":
+            if data.get("reason") not in CONSENSUS_REASONS:
                 raise ValueError("reason")
         except (ValueError, TypeError):
             return self.json_message("invalid negative decision", 400)

@@ -94,6 +94,16 @@ unsichere oder widersprüchliche Ergebnisse bleiben offen. Die private Richtlini
 enthält bekannte Phrasen, Konfidenzgrenzen und freigegebene Teacher-Hashes.
 Sie ist standardmäßig nicht aktiviert.
 
+Ab Collector 0.5.8 und Trainer 0.6.3 gibt es eine zweite, ebenfalls
+ausdrücklich einzuschaltende Regel für Auslösungen ohne Aktivierungswort
+(Räuspern, Husten, beliebige Sprache): Der kalibrierte Teacher bewertet den
+Clip niedrig, und keines von zwei verschiedenen STT-Modellen schreibt ein
+Aktivierungswort. Der Collector nimmt dafür den Grund
+`no_wake_word_teacher_stt_consensus` an und hält ihn in
+`analysis_decisions.jsonl` fest. Sie erfasst die leichten Fälle; was auch den
+Teacher täuscht, bleibt unter **Zu prüfen**. Automatisch übernommene Clips
+lassen sich in der Karte wie jeder andere wieder zurückholen.
+
 Zusätzlich muss ein HA-Administrator in den Integrationsoptionen
 **Automatische Negativentscheidungen erlauben** einschalten. Ohne diese
 standardmäßig ausgeschaltete Freigabe verweigert der Collector die schreibende

@@ -77,6 +77,26 @@ async def test_invalid_consensus_cannot_change_labels(consensus_entry, hass_clie
     assert (await collector.async_list())[0]["category"] == "triggers"
 
 
+async def test_no_wake_word_consensus_is_recorded_with_its_own_reason(consensus_entry, hass_client_no_auth):
+    collector = consensus_entry.runtime_data
+    [record] = await collector.async_add("bath", "", wav_bytes(speech(3)), "trigger")
+    url = "/api/wake_word_collector/export/hey_nova/review/triggers/bath/" + record["filename"]
+    payload = {
+        "decision": "negative",
+        "sha256": record["sha256"],
+        "review_id": "nightly_run",
+        "teacher_hashes": ["a" * 64],
+        "reason": "no_wake_word_teacher_stt_consensus",
+    }
+    client = await hass_client_no_auth()
+    response = await client.post(url, json=payload, headers={"X-Wakeword-Token": TOKEN})
+    assert response.status == 200 and (await response.json())["category"] == "negatives"
+    [item] = await collector.async_list()
+    assert item["category"] == "negatives" and item["auto_negative"] is True
+    evidence = json.loads((collector.store.root / "analysis_decisions.jsonl").read_text().splitlines()[0])
+    assert evidence["evidence"]["reason"] == "no_wake_word_teacher_stt_consensus"
+
+
 async def test_default_option_never_grants_consensus_write_access(entry, hass_client_no_auth):  # noqa: F811
     collector = entry.runtime_data
     [record] = await collector.async_add("bath", "", wav_bytes(speech(3)), "trigger")
