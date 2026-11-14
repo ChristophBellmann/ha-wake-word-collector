@@ -12,7 +12,9 @@ small YAML file next to your ESPHome configurations:
    a substitution with factor 1 gets the cutoff the trainer chose (within
    its false activation budget); factor 2 the most sensitive cutoff with at
    most twice as many false activations per hour, and so on; never below
-   `min_cutoff`. Values are 0-255, as `set_probability_cutoff` takes them,
+   `min_cutoff`. A substitution listed under `cutoffs:` keeps the fixed
+   probability you chose instead, whatever the trainer picked.
+   Values are 0-255, as `set_probability_cutoff` takes them,
 4. with --build, runs your build command for every device not yet verified for this model; failed devices can be retried.
 
 The integration uses the same steps for its rollout through the ESPHome
@@ -164,6 +166,23 @@ def ladder(manifest: dict, report: dict, factors: dict[str, float], min_cutoff: 
     return steps
 
 
+def fixed_cutoffs(report: dict, cutoffs: Any, where: str) -> list[tuple[str, float, str]]:
+    """Cutoffs the user fixed: they do not follow the trainer's choice."""
+    if not isinstance(cutoffs, dict):
+        raise UpdateError(f"{where}: cutoffs must map substitutions to probabilities")
+    curve = report.get("curve") or []
+    steps = []
+    for key, value in cutoffs.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 1:
+            raise UpdateError(f"{where}: cutoff for {key} must be a probability above 0 and at most 1")
+        note = "fixed"
+        point = min(curve, key=lambda p: abs(p["cutoff"] - value)) if curve else None
+        if point and abs(point["cutoff"] - value) < 0.003:
+            note = f"fixed, recall {point['recall']:.0%}, {point['faph']:.2f} false/h"
+        steps.append((str(key), float(value), note))
+    return sorted(steps, key=lambda step: -step[1])
+
+
 def set_substitution(text: str, key: str, value: str, comment: str, where: str) -> str:
     pattern = re.compile(rf"^(\s*){re.escape(key)}:.*$", re.MULTILINE)
     found = len(pattern.findall(text))
@@ -250,7 +269,11 @@ def prepare(
             raise UpdateError(f"{device['file']}: {err.strerror or err}") from err
         reference = Path(os.path.relpath(target_manifest, path.parent)).as_posix()
         new = set_substitution(text, device["model"], reference, "", device["file"])
+        # Fixed cutoffs win over the ladder; a device's own list replaces the global one.
+        fixed = fixed_cutoffs(report, device.get("cutoffs", config.get("cutoffs", {})), device["file"])
+        fixed_keys = {key for key, _, _ in fixed}
         steps = ladder(manifest, report, device.get("ladder", factors), min_cutoff)
+        steps = [step for step in steps if step[0] not in fixed_keys] + fixed
         for key, cutoff, note in steps:
             comment = f"p={cutoff:.3f}, {stamp}" + (f", {note}" if note else "")
             new = set_substitution(new, key, f'"{round(cutoff * 255)}"', comment, device["file"])

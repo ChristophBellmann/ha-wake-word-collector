@@ -91,6 +91,61 @@ def test_update_and_build(setup: Path) -> None:
     assert built == ["kitchen.yaml", "sub/hall.yaml"]
 
 
+def configure(setup: Path, **changes) -> Path:
+    path = setup / "wake-word-model.yaml"
+    config = json.loads(path.read_text())
+    config.update(changes)
+    path.write_text(json.dumps(config))
+    return path
+
+
+def test_fixed_cutoffs_do_not_follow_the_trainer(setup: Path) -> None:
+    # The trainer chose 195/255, below min_cutoff: without fixed values every step collapses onto it.
+    path = configure(setup, min_cutoff=0.94)
+    assert model_update.run(["--config", str(path)]) == 0
+    kitchen = (setup / "kitchen.yaml").read_text()
+    assert 'wake_word_moderate_cutoff_uint8: "195"' in kitchen and 'wake_word_very_cutoff_uint8: "195"' in kitchen
+    cutoffs = {"wake_word_slight_cutoff_uint8": 250 / 255, "wake_word_moderate_cutoff_uint8": 0.941}
+    path = configure(setup, cutoffs=cutoffs)
+    assert model_update.run(["--config", str(path)]) == 0
+    kitchen = (setup / "kitchen.yaml").read_text()
+    assert 'wake_word_slight_cutoff_uint8: "250"  # p=0.980, trained 2026-10-05, fixed, recall 17%' in kitchen
+    assert 'wake_word_moderate_cutoff_uint8: "240"  # p=0.941, trained 2026-10-05, fixed' in kitchen
+    assert 'wake_word_very_cutoff_uint8: "195"' in kitchen  # not fixed: still from the ladder
+    hall = (setup / "sub" / "hall.yaml").read_text()
+    assert 'wake_word_slight_cutoff_uint8: "250"' in hall
+    assert 'wake_word_moderate_cutoff_uint8: "240"' in hall  # fixed values also reach steps outside its ladder
+
+
+def test_device_cutoffs_replace_the_global_ones(setup: Path) -> None:
+    path = setup / "wake-word-model.yaml"
+    config = json.loads(path.read_text())
+    config["cutoffs"] = {"wake_word_slight_cutoff_uint8": 0.98}
+    config["devices"][1]["cutoffs"] = {"wake_word_very_cutoff_uint8": 0.5}
+    path.write_text(json.dumps(config))
+    assert model_update.run(["--config", str(path)]) == 0
+    assert 'wake_word_slight_cutoff_uint8: "250"' in (setup / "kitchen.yaml").read_text()
+    hall = (setup / "sub" / "hall.yaml").read_text()
+    assert 'wake_word_slight_cutoff_uint8: "195"' in hall and 'wake_word_very_cutoff_uint8: "128"' in hall
+
+
+@pytest.mark.parametrize(
+    "cutoffs",
+    [
+        [0.98],
+        {"wake_word_slight_cutoff_uint8": 0},
+        {"wake_word_slight_cutoff_uint8": 250},
+        {"wake_word_slight_cutoff_uint8": True},
+        {"wake_word_slight_cutoff_uint8": "0.98"},
+    ],
+)
+def test_invalid_fixed_cutoffs_change_nothing(setup: Path, cutoffs) -> None:
+    before = (setup / "kitchen.yaml").read_text()
+    with pytest.raises(model_update.UpdateError, match="cutoff"):
+        model_update.run(["--config", str(configure(setup, cutoffs=cutoffs))])
+    assert (setup / "kitchen.yaml").read_text() == before
+
+
 def test_errors(setup: Path, tmp_path: Path) -> None:
     config = setup / "wake-word-model.yaml"
     (setup / "kitchen.yaml").write_text(DEVICE.replace('  wake_word_very_cutoff_uint8: "190"\n', ""))

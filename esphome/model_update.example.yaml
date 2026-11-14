@@ -20,6 +20,14 @@ ladder:
   wake_word_moderate_cutoff_uint8: 2
   wake_word_very_cutoff_uint8: 5
 
+# Optional: fixed cutoffs (0-1) that never follow the trainer. They win over
+# the ladder for the substitutions listed, also when the trainer's own cutoff
+# is below min_cutoff (then every ladder step would collapse onto it).
+# Override per device with `cutoffs:` there.
+# cutoffs:
+#   wake_word_slight_cutoff_uint8: 0.98
+#   wake_word_moderate_cutoff_uint8: 0.94
+
 devices:
   - file: kitchen-satellite.yaml
     address: kitchen-satellite.local # optional local address: {address} in build; the rollout installs to it
